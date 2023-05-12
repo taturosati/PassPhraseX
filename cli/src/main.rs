@@ -11,11 +11,10 @@ use std::string::String;
 use std::io::{Read, Write};
 use std::ops::Deref;
 use app_dirs2::*;
-use rust_sodium::crypto::box_::Nonce;
 use crate::cryptography::{EncryptedValue, KeyPair, SeedPhrase};
 use crypto_box::{
     aead::{Aead, AeadCore, OsRng},
-    ChaChaBox, PublicKey, SecretKey
+    ChaChaBox, PublicKey, SecretKey, Nonce
 };
 
 const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Rosati"};
@@ -87,7 +86,12 @@ impl App {
         let seed_phrase = SeedPhrase::new();
         let key_pair = KeyPair::new(seed_phrase.clone());
 
-        let sk = SecretKey::from(key_pair.private_key.0.);
+        // let cipher = key_pair.encrypt("Test message");
+        // println!("Cipher: {:?}", cipher.cipher);
+        // let decrypted = key_pair.decrypt(&cipher);
+        //
+        // assert_eq!(decrypted, "Test message");
+
 
         let path_to_file = match app_dir(AppDataType::UserData, &APP_INFO, "data") {
             Ok(path) => path.join("private_key"),
@@ -97,7 +101,7 @@ impl App {
         println!("Path: {:?}", path_to_file);
         match File::create(path_to_file) {
             Ok(mut file) => {
-                match file.write_all(&key_pair.private_key[..]) {
+                match file.write_all(key_pair.private_key.as_bytes()) {
                     Ok(_) => seed_phrase,
                     Err(e) => panic!("Error: {}", e)
                 }
@@ -118,7 +122,7 @@ impl App {
         println!("Path: {:?}", path_to_file);
         match File::create(path_to_file) {
             Ok(mut file) => {
-                match file.write_all(&key_pair.private_key[..]) {
+                match file.write_all(key_pair.private_key.as_bytes()) {
                     Ok(_) => println!("Successfully authenticated on device"),
                     Err(e) => panic!("Error: {}", e)
                 }
@@ -213,7 +217,7 @@ fn main() {
 //     println!("Get");
 // }
 
-fn get_sk(device_pass: &str) -> Vec<u8> {
+fn get_sk(device_pass: &str) -> [u8;32] {
     let path_to_file = match app_dir(AppDataType::UserData, &APP_INFO, "data") {
         Ok(path) => path.join("private_key"),
         Err(e) => panic!("Error: {}", e)
@@ -221,8 +225,8 @@ fn get_sk(device_pass: &str) -> Vec<u8> {
 
     match File::open(path_to_file) {
         Ok(mut file) => {
-            let mut content = Vec::new();
-            match file.read_to_end(&mut content) {
+            let mut content: [u8;32] = [0;32];
+            match file.read_exact(&mut content) {
                 Ok(_) => content,
                 Err(e) => panic!("Error: {}", e)
             }

@@ -1,11 +1,12 @@
 use std::hash::Hash;
 use std::str;
-use rand_core::OsRng;
 use base64::{engine::{general_purpose::STANDARD}, Engine};
 use bip32::{Mnemonic, XPrv};
-use rust_sodium::crypto::box_::{Nonce, PublicKey, SecretKey};
-use rust_sodium::crypto::box_;
-
+use crypto_box::{
+    aead::{Aead, AeadCore, OsRng},
+    ChaChaBox, PublicKey, SecretKey, Nonce
+};
+use crypto_box::aead::Payload;
 
 #[derive(Eq, PartialEq)]
 pub struct EncryptedValue {
@@ -62,24 +63,26 @@ impl KeyPair {
         let derived_sk = XPrv::new(&seed).unwrap();
 
         // Convert the `XPrv` to a `SecretKey` and `PublicKey`
-        let private_key = SecretKey::from_slice(&derived_sk.to_bytes()).unwrap();
+        let private_key = SecretKey::from(derived_sk.to_bytes());
         let public_key = private_key.public_key();
 
         KeyPair { private_key, public_key }
     }
 
-    pub fn from_sk(sk: Vec<u8>) -> KeyPair {
-        let private_key = SecretKey::from_slice(&sk).unwrap();
+    pub fn from_sk(sk: [u8;32]) -> KeyPair {
+        let private_key = SecretKey::from(sk);
         let public_key = private_key.public_key();
         KeyPair { private_key, public_key }
     }
 
     pub fn encrypt(&self, message: &str) -> EncryptedValue {
-        let nonce = box_::gen_nonce();
-        let enc = box_::seal(message.as_bytes(),
-                             &nonce,
-                             &self.public_key,
-                             &self.private_key);
+        let nonce = ChaChaBox::generate_nonce(&mut OsRng);
+
+        let personal_box = ChaChaBox::new(&self.public_key, &self.private_key);
+        let enc = personal_box.encrypt(&nonce,Payload {
+            msg: message.as_bytes(),
+            aad: b"",
+        }).unwrap();
         EncryptedValue {
             cipher: STANDARD.encode(&enc),
             nonce
@@ -88,10 +91,13 @@ impl KeyPair {
 
     pub fn decrypt(&self, enc: &EncryptedValue) -> String {
         let cipher = STANDARD.decode(enc.cipher.as_bytes()).unwrap();
-        let dec = box_::open(&cipher,
-                             &enc.nonce,
-                             &self.public_key,
-                             &self.private_key).unwrap();
+        let personal_box = ChaChaBox::new(&self.public_key, &self.private_key);
+
+        let dec = personal_box.decrypt(&enc.nonce,Payload {
+            msg: cipher.as_slice(),
+            aad: b"",
+        }).unwrap();
+
         str::from_utf8(&dec).unwrap().to_owned()
     }
 }
