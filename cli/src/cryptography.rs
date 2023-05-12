@@ -8,16 +8,9 @@ use crypto_box::{
 };
 use crypto_box::aead::Payload;
 
-#[derive(Eq, PartialEq)]
 pub struct EncryptedValue {
     pub cipher: String,
     pub nonce: Nonce,
-}
-
-impl Hash for EncryptedValue {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.cipher.hash(state);
-    }
 }
 
 // derive clone
