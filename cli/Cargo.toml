@@ -1,0 +1,16 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+app_dirs2 = "2.5.5"
+base64 = "0.21.0"
+bip32 = {version = "0.5.0", features = ["alloc"]}
+clap = { version = "4.2.7", features = ["derive"] }
+crypto_box = "0.8.2"
+rand_core = { version = "0.6.4", features = ["getrandom", "std"] }
+rsa = "0.9.2"
+rust_sodium = "0.10.2"
