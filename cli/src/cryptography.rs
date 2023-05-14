@@ -1,12 +1,10 @@
-use std::hash::Hash;
 use std::str;
-use base64::{engine::{general_purpose::STANDARD}, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use bip32::{Mnemonic, XPrv};
 use crypto_box::{
-    aead::{Aead, AeadCore, OsRng},
-    ChaChaBox, PublicKey, SecretKey, Nonce
+    aead::{Aead, AeadCore, OsRng, Payload},
+    ChaChaBox, Nonce, PublicKey, SecretKey
 };
-use crypto_box::aead::Payload;
 
 pub struct EncryptedValue {
     pub cipher: String,
