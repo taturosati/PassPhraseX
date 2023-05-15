@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use app_dirs2::{app_dir, AppDataType, AppInfo};
-
-mod cryptography;
-use cryptography::{KeyPair, SeedPhrase, EncryptedValue};
+use common::{KeyPair, SeedPhrase, EncryptedValue};
 
 const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Rosati"};
 
