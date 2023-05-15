@@ -11,7 +11,6 @@ pub struct EncryptedValue {
     pub nonce: Nonce,
 }
 
-// derive clone
 #[derive(Clone)]
 pub struct SeedPhrase {
     phrase: String
@@ -43,8 +42,7 @@ pub struct KeyPair {
 */
 impl KeyPair {
     pub fn new(seed_phrase: SeedPhrase) -> KeyPair {
-        // Generate random Mnemonic using the default language (English)
-        // let mnemonic = Mnemonic::random(&mut OsRng, Default::default());
+        // Get Mnemonic using the default language (English)
         let mnemonic = Mnemonic::new(seed_phrase.get_phrase(), Default::default()).unwrap();
 
         // Derive a BIP39 seed value using the given password

@@ -1,0 +1,12 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crypto_box = "0.8.2"
+rand_core = { version = "0.6.4", features = ["getrandom", "std"] }
+bip32 = {version = "0.5.0", features = ["alloc"]}
+base64 = "0.21.0"

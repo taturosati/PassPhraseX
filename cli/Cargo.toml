@@ -7,8 +7,5 @@ edition = "2021"
 
 [dependencies]
 app_dirs2 = "2.5.5"
-base64 = "0.21.0"
-bip32 = {version = "0.5.0", features = ["alloc"]}
 clap = { version = "4.2.7", features = ["derive"] }
-crypto_box = "0.8.2"
-rand_core = { version = "0.6.4", features = ["getrandom", "std"] }
+common = { path = "../common" }
