@@ -29,6 +29,7 @@ dependencies = [
  "axum",
  "mongodb",
  "serde",
+ "serde_json",
  "tokio",
 ]
 
