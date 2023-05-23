@@ -8,7 +8,6 @@ pub struct HandlerResponse {
     pub body: String,
 }
 
-
 impl HandlerResponse {
     pub fn new<T: Serialize>(status: StatusCode, body: T) -> Self {
         match serde_json::to_string(&body) {
@@ -22,6 +21,10 @@ impl HandlerResponse {
             }
         }
     }
+
+
+
+
 }
 
 impl IntoResponse for HandlerResponse {

@@ -3,17 +3,15 @@ mod handlers;
 
 use model::common::DatabaseConfig;
 use handlers::user::create_user;
-
-use axum::{routing::{get, post}, Router, extract::Json};
-use serde::{Deserialize, Serialize};
-use mongodb::{Client, options::ClientOptions};
-
+use axum::{routing::{post}, Router};
+use crate::handlers::password::add_password;
 
 #[tokio::main]
 async fn main() {
     // build our application with a single route
     let app = Router::new()
-        .route("/users", post(create_user));
+        .route("/users", post(create_user))
+        .route("/users/:user_id/passwords", post(add_password));
 
     let db_config = DatabaseConfig::new();
     let client = db_config.into_client().await.unwrap();
