@@ -89,4 +89,8 @@ impl KeyPair {
 
         str::from_utf8(&dec).unwrap().to_owned()
     }
+
+    pub fn get_pk(&self) -> String {
+        STANDARD.encode(&self.public_key)
+    }
 }

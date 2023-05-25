@@ -51,12 +51,14 @@ enum Commands {
     },
 }
 
-fn main() {
+
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
 
     match args.command {
         Commands::Register {device_pass} => {
-            register(&device_pass);
+            register(&device_pass).await;
         },
         Commands::Login { seed_phrase, device_pass } => {
             auth_device(&seed_phrase, &device_pass);
