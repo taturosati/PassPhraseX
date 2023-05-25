@@ -9,7 +9,6 @@ pub async fn add_password(State(state): State<AppData>, Path(user_id): Path<Stri
         Ok(password) => HandlerResponse::new(StatusCode::CREATED, password),
         Err(err) => HandlerResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err)
     }
-
 }
 
 pub async fn list_passwords(State(state): State<AppData>, Path(user_id): Path<String>) -> HandlerResponse {

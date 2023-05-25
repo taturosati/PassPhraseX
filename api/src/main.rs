@@ -23,22 +23,28 @@ pub struct AppData {
 
 #[tokio::main]
 async fn main() {
-    // build our application with a single route
-    let app = Router::new()
-        .route("/users", post(create_user))
+    let no_middleware_router = Router::new()
+        .route("/users", post(create_user));
+
+    let auth_router = Router::new()
         .route("/users/:user_id/passwords", post(add_password))
         .route("/users/:user_id/passwords", get(list_passwords))
-            .route_layer(middleware::from_fn(only_user));
-
-    let client = DatabaseConfig::new()
+        .route_layer(middleware::from_fn(only_user));
+    
+    let db_client = DatabaseConfig::new()
         .into_client()
         .await
         .expect("Failed to connect to database");
 
-    let app = app.with_state(AppData {
-        user_service: UserService::new(&client),
-        password_service: PasswordService::new(&client)
+    let app = Router::new()
+        .merge(no_middleware_router)
+        .merge(auth_router)
+        .with_state(AppData {
+        user_service: UserService::new(&db_client),
+        password_service: PasswordService::new(&db_client)
     });
+
+
 
     // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().expect("Failed to parse address"))
