@@ -4,11 +4,18 @@ use crate::handlers::common::HandlerResponse;
 use crate::model::password::Password;
 
 pub async fn add_password(State(state): State<AppData>, Path(user_id): Path<String>, Json(payload): Json<Password>) -> HandlerResponse {
-
     // TODO: Multiple error types
     match state.password_service.add_password(user_id, payload).await {
-        Ok(passwords) => HandlerResponse::new(StatusCode::OK, passwords),
+        Ok(password) => HandlerResponse::new(StatusCode::CREATED, password),
         Err(err) => HandlerResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err)
     }
 
+}
+
+pub async fn list_passwords(State(state): State<AppData>, Path(user_id): Path<String>) -> HandlerResponse {
+    // TODO: Multiple error types
+    match state.password_service.list_passwords(user_id).await {
+        Ok(passwords) => HandlerResponse::new(StatusCode::OK, passwords),
+        Err(err) => HandlerResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err)
+    }
 }

@@ -11,6 +11,8 @@ use handlers::user::create_user;
 use handlers::password::add_password;
 
 use axum::{routing::{post}, Router};
+use axum::routing::get;
+use crate::handlers::password::list_passwords;
 
 #[derive(Clone)]
 pub struct AppData {
@@ -23,7 +25,8 @@ async fn main() {
     // build our application with a single route
     let app = Router::new()
         .route("/users", post(create_user))
-        .route("/users/:user_id/passwords", post(add_password));
+        .route("/users/:user_id/passwords", post(add_password))
+        .route("/users/:user_id/passwords", get(list_passwords));
 
     let client = DatabaseConfig::new()
         .into_client()
