@@ -75,15 +75,23 @@ impl App {
         }
     }
 
-    pub fn add(&mut self, site: String, username: String, password: String) {
-        let mut site_credentials: HashMap<String, EncryptedValue> = HashMap::new();
-        site_credentials.insert(
-            username,
-            self.key_pair.encrypt(&password)
-        );
+    pub async fn add(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>>{
+        // let mut site_credentials: HashMap<String, EncryptedValue> = HashMap::new();
+        // site_credentials.insert(
+        //     username,
+        //     self.key_pair.encrypt(&password)
+        // );
 
-        self.credentials.insert(site, site_credentials);
-        // TODO: Write to file
+        let public_key = self.key_pair.get_pk();
+        let username = self.key_pair.encrypt(&username).cipher;
+        let password = self.key_pair.encrypt(&password).cipher;
+
+        self.api.add_password(public_key, site, username, password).await?;
+
+        Ok(())
+
+
+
     }
 
     pub fn get(self, site: String, username: Option<String>) {
@@ -98,7 +106,7 @@ impl App {
 
 fn get_sk(device_pass: &str) -> [u8;32] {
     let path_to_file = match app_dir(AppDataType::UserData, &APP_INFO, "data") {
-        Ok(path) => path.join("private_key"),
+        Ok(path) => path.join("secret_key"),
         Err(e) => panic!("Error: {}", e)
     };
 

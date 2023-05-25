@@ -27,4 +27,27 @@ impl Api {
 			Err(e) => Err(Box::new(e)),
 		}
 	}
+
+	pub async fn add_password(
+		&self,
+		public_key: String,
+		site: String,
+		username: String,
+		password: String
+	) -> Result<(), Box<dyn Error>> {
+		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
+
+		let mut body = HashMap::new();
+		body.insert("site", site);
+		body.insert("username", username);
+		body.insert("password", password);
+
+		println!("{}: {:?}", url.to_string(), body);
+		// TODO: Actual auth
+		let res = self.client.post(url)
+			.header("Authorization", "Bearer 1234")
+			.json(&body).send().await?;
+		println!("{:?}", res);
+		Ok(())
+	}
 }

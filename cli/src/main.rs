@@ -64,7 +64,8 @@ async fn main() {
             auth_device(&seed_phrase, &device_pass);
         },
         Commands::Add { site, username, password, device_pass } => {
-            App::new(&device_pass).add(site, username, password);
+            App::new(&device_pass).add(site, username, password).await
+                .expect("failed to add password");
         },
         Commands::Get { site, username, device_pass } => {
             App::new(&device_pass).get(site, username);

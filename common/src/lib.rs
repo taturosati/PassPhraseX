@@ -1,5 +1,5 @@
 use std::str;
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{Engine, engine::general_purpose::URL_SAFE};
 use bip32::{Mnemonic, XPrv};
 use crypto_box::{
     aead::{Aead, AeadCore, OsRng, Payload},
@@ -73,13 +73,13 @@ impl KeyPair {
             aad: b"",
         }).unwrap();
         EncryptedValue {
-            cipher: STANDARD.encode(&enc),
+            cipher: URL_SAFE.encode(&enc),
             nonce
         }
     }
 
     pub fn decrypt(&self, enc: &EncryptedValue) -> String {
-        let cipher = STANDARD.decode(enc.cipher.as_bytes()).unwrap();
+        let cipher = URL_SAFE.decode(enc.cipher.as_bytes()).unwrap();
         let personal_box = ChaChaBox::new(&self.public_key, &self.private_key);
 
         let dec = personal_box.decrypt(&enc.nonce,Payload {
@@ -91,6 +91,6 @@ impl KeyPair {
     }
 
     pub fn get_pk(&self) -> String {
-        STANDARD.encode(&self.public_key)
+        URL_SAFE.encode(&self.public_key)
     }
 }
