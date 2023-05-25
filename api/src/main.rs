@@ -7,10 +7,11 @@ use model::common::DatabaseConfig;
 use service::user::UserService;
 use service::password::PasswordService;
 
+use handlers::middleware::auth::only_user;
 use handlers::user::create_user;
 use handlers::password::add_password;
 
-use axum::{routing::{post}, Router};
+use axum::{routing::{post}, Router, middleware};
 use axum::routing::get;
 use crate::handlers::password::list_passwords;
 
@@ -26,7 +27,8 @@ async fn main() {
     let app = Router::new()
         .route("/users", post(create_user))
         .route("/users/:user_id/passwords", post(add_password))
-        .route("/users/:user_id/passwords", get(list_passwords));
+        .route("/users/:user_id/passwords", get(list_passwords))
+            .route_layer(middleware::from_fn(only_user));
 
     let client = DatabaseConfig::new()
         .into_client()
