@@ -1,8 +1,7 @@
 // Wrapper functions to call api
-
 use std::collections::HashMap;
 use std::error::Error;
-use reqwest::{Client, Url};
+use reqwest::{Client, StatusCode, Url};
 use common::model::password::Password;
 
 pub struct Api {
@@ -43,16 +42,22 @@ impl Api {
 		body.insert("username", username);
 		body.insert("password", password);
 
-		println!("{}: {:?}", url.to_string(), body);
 		// TODO: Actual auth
 		let res = self.client.post(url)
 			.header("Authorization", "Bearer 1234")
 			.json(&body).send().await?;
-		println!("{:?}", res);
-		Ok(())
+
+		// TODO: Map more errors
+		match res.status() {
+			StatusCode::CREATED => Ok(()),
+			_ => {
+				let text = res.text().await.unwrap_or("".to_string());
+				Err(format!("Error from API: {}", text).into())
+			}
+		}
 	}
 
-	pub async fn get_passwords(&self, public_key: String, site: String, username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
+	pub async fn get_passwords(&self, public_key: String, site: String, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
 		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
 
 		// TODO: Actual auth
@@ -60,7 +65,14 @@ impl Api {
 			.header("Authorization", "Bearer 1234")
 			.send().await?;
 
-		let body = res.json::<Vec<Password>>().await.expect("Failed to parse response");
+		match res.status() {
+			StatusCode::OK => (),
+			_ => {
+				return Err("Error from API".into());
+			}
+		}
+
+		let body = res.json::<Vec<Password>>().await?;
 
 		let passwords = body.into_iter().filter(|p| p.site == site).collect();
 		Ok(passwords)
