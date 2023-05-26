@@ -7,6 +7,7 @@ use std::io::{Read, Write};
 use app_dirs2::{app_dir, AppDataType, AppInfo};
 use common::{KeyPair, SeedPhrase, EncryptedValue};
 use api::Api;
+use std::string::String;
 
 const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Rosati"};
 
@@ -76,31 +77,29 @@ impl App {
     }
 
     pub async fn add(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>>{
-        // let mut site_credentials: HashMap<String, EncryptedValue> = HashMap::new();
-        // site_credentials.insert(
-        //     username,
-        //     self.key_pair.encrypt(&password)
-        // );
-
         let public_key = self.key_pair.get_pk();
-        let username = self.key_pair.encrypt(&username).cipher;
-        let password = self.key_pair.encrypt(&password).cipher;
+        let username_enc = self.key_pair.encrypt(&username);
+        let password_enc = self.key_pair.encrypt(&password);
 
-        self.api.add_password(public_key, site, username, password).await?;
+        self.api.add_password(public_key, site, username_enc.into(), password_enc.into()).await?;
 
         Ok(())
-
-
-
     }
 
-    pub fn get(self, site: String, username: Option<String>) {
-        let site_credentials = self.credentials.get(&site).unwrap();
-        // TODO: Print all usernames if username is None
-        let encrypted_password = site_credentials.get(&username.unwrap()).unwrap();
-        let password = self.key_pair.decrypt(encrypted_password);
+    pub async fn get(self, site: String, username: Option<String>) {
+        let passwords = self.api.get_passwords(self.key_pair.get_pk(), site, username).await
+            .expect("Failed to get password");
 
-        println!("{}", password);
+        for credential in passwords {
+
+            let password_enc = EncryptedValue::from(credential.password);
+            let username_enc = EncryptedValue::from(credential.username);
+
+            let password_dec = self.key_pair.decrypt(&password_enc);
+            let username_dec = self.key_pair.decrypt(&username_enc);
+
+            println!("{}: {}", username_dec, password_dec);
+        }
     }
 }
 

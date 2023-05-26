@@ -9,4 +9,5 @@ edition = "2021"
 crypto_box = "0.8.2"
 rand_core = { version = "0.6.4", features = ["getrandom", "std"] }
 bip32 = {version = "0.5.0", features = ["alloc"]}
+serde = { version = "1.0.163", features = ["serde_derive"] }
 base64 = "0.21.0"

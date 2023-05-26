@@ -68,7 +68,7 @@ async fn main() {
                 .expect("failed to add password");
         },
         Commands::Get { site, username, device_pass } => {
-            App::new(&device_pass).get(site, username);
+            App::new(&device_pass).get(site, username).await;
         }
     }
 

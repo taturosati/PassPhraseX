@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use reqwest::{Client, Url};
+use common::model::password::Password;
 
 pub struct Api {
 	client: Client,
@@ -49,5 +50,19 @@ impl Api {
 			.json(&body).send().await?;
 		println!("{:?}", res);
 		Ok(())
+	}
+
+	pub async fn get_passwords(&self, public_key: String, site: String, username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
+		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
+
+		// TODO: Actual auth
+		let res = self.client.get(url)
+			.header("Authorization", "Bearer 1234")
+			.send().await?;
+
+		let body = res.json::<Vec<Password>>().await.expect("Failed to parse response");
+
+		let passwords = body.into_iter().filter(|p| p.site == site).collect();
+		Ok(passwords)
 	}
 }
