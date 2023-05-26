@@ -1,5 +1,4 @@
 mod api;
-mod file;
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -13,6 +12,7 @@ use common::model::password::Password;
 use crate::file::{read_app_data, read_sk, write_app_data, write_sk};
 
 pub const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Matías Rosati"};
+
 
 // Map of site -> Map of username -> password
 pub type CredentialsMap = HashMap<String, HashMap<EncryptedValue, EncryptedValue>>;

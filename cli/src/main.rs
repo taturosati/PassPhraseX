@@ -78,6 +78,7 @@ async fn main() {
                 },
                 Err(e) => println!("Failed to get password: {}", e)
             }
+
         }
     }
 
