@@ -1,4 +1,5 @@
 mod api;
+mod file;
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -8,8 +9,9 @@ use app_dirs2::{app_dir, AppDataType, AppInfo};
 use common::{KeyPair, SeedPhrase, EncryptedValue};
 use api::Api;
 use std::string::String;
+use crate::file::{read_sk, write_sk};
 
-const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Rosati"};
+pub const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Matías Rosati"};
 
 pub struct App<> {
     key_pair: KeyPair,
@@ -24,24 +26,13 @@ pub async fn register(device_pass: &str) -> SeedPhrase {
 
     let api = Api::new("http://localhost:3000");
 
-    save_sk(key_pair.private_key.as_bytes())
+    write_sk(key_pair.private_key.as_bytes())
         .expect("Failed to save private key to file");
 
     api.create_user(key_pair.get_pk()).await
         .expect("Failed to create user");
 
     seed_phrase
-}
-
-fn save_sk(public_key: &[u8; 32]) -> Result<(), Box<dyn Error>> {
-    let path_to_file = app_dir(AppDataType::UserData, &APP_INFO, "data")?
-        .join("secret_key");
-
-    println!("Path: {:?}", path_to_file);
-    let mut file = File::create(path_to_file)?;
-    file.write_all(public_key)?;
-
-    Ok(())
 }
 
 pub fn auth_device(seed_phrase: &str, device_pass: &str) {
@@ -66,7 +57,7 @@ pub fn auth_device(seed_phrase: &str, device_pass: &str) {
 
 impl App {
     pub fn new(device_pass: &str) -> App {
-        let private_key = get_sk(device_pass);
+        let private_key = read_sk(device_pass).expect("Failed to read private key from file");
         let key_pair = KeyPair::from_sk(private_key);
 
         App {
@@ -100,23 +91,5 @@ impl App {
 
             println!("{}: {}", username_dec, password_dec);
         }
-    }
-}
-
-fn get_sk(device_pass: &str) -> [u8;32] {
-    let path_to_file = match app_dir(AppDataType::UserData, &APP_INFO, "data") {
-        Ok(path) => path.join("secret_key"),
-        Err(e) => panic!("Error: {}", e)
-    };
-
-    match File::open(path_to_file) {
-        Ok(mut file) => {
-            let mut content: [u8;32] = [0;32];
-            match file.read_exact(&mut content) {
-                Ok(_) => content,
-                Err(e) => panic!("Error: {}", e)
-            }
-        },
-        Err(e) => panic!("Error: {}", e)
     }
 }
