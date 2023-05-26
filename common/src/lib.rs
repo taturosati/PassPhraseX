@@ -7,7 +7,9 @@ use crypto_box::{
     aead::{Aead, AeadCore, OsRng, Payload},
     ChaChaBox, Nonce, PublicKey, SecretKey
 };
+use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize, Deserialize, Hash, Eq, PartialEq, Clone)]
 pub struct EncryptedValue {
     pub cipher: String,
     pub nonce: String,
