@@ -51,21 +51,24 @@ enum Commands {
     },
 }
 
-fn main() {
+
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
 
     match args.command {
         Commands::Register {device_pass} => {
-            register(&device_pass);
+            register(&device_pass).await;
         },
         Commands::Login { seed_phrase, device_pass } => {
             auth_device(&seed_phrase, &device_pass);
         },
         Commands::Add { site, username, password, device_pass } => {
-            App::new(&device_pass).add(site, username, password);
+            App::new(&device_pass).add(site, username, password).await
+                .expect("failed to add password");
         },
         Commands::Get { site, username, device_pass } => {
-            App::new(&device_pass).get(site, username);
+            App::new(&device_pass).get(site, username).await;
         }
     }
 
