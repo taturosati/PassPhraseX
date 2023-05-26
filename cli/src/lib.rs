@@ -1,8 +1,13 @@
+mod api;
+
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
 use app_dirs2::{app_dir, AppDataType, AppInfo};
 use common::{KeyPair, SeedPhrase, EncryptedValue};
+use api::Api;
+use std::string::String;
 
 const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Rosati"};
 
@@ -10,33 +15,33 @@ pub struct App<> {
     key_pair: KeyPair,
     // HashMap<site, HashMap<username, password>>
     credentials: HashMap<String, HashMap<String, EncryptedValue>>,
+    api: Api
 }
 
-pub fn register(device_pass: &str) -> SeedPhrase {
+pub async fn register(device_pass: &str) -> SeedPhrase {
     let seed_phrase = SeedPhrase::new();
     let key_pair = KeyPair::new(seed_phrase.clone());
 
-    // let cipher = key_pair.encrypt("Test message");
-    // println!("Cipher: {:?}", cipher.cipher);
-    // let decrypted = key_pair.decrypt(&cipher);
-    //
-    // assert_eq!(decrypted, "Test message");
+    let api = Api::new("http://localhost:3000");
 
-    let path_to_file = match app_dir(AppDataType::UserData, &APP_INFO, "data") {
-        Ok(path) => path.join("private_key"),
-        Err(e) => panic!("Error: {}", e)
-    };
+    save_sk(key_pair.private_key.as_bytes())
+        .expect("Failed to save private key to file");
+
+    api.create_user(key_pair.get_pk()).await
+        .expect("Failed to create user");
+
+    seed_phrase
+}
+
+fn save_sk(public_key: &[u8; 32]) -> Result<(), Box<dyn Error>> {
+    let path_to_file = app_dir(AppDataType::UserData, &APP_INFO, "data")?
+        .join("secret_key");
 
     println!("Path: {:?}", path_to_file);
-    match File::create(path_to_file) {
-        Ok(mut file) => {
-            match file.write_all(key_pair.private_key.as_bytes()) {
-                Ok(_) => seed_phrase,
-                Err(e) => panic!("Error: {}", e)
-            }
-        },
-        Err(e) => panic!("Error: {}", e)
-    }
+    let mut file = File::create(path_to_file)?;
+    file.write_all(public_key)?;
+
+    Ok(())
 }
 
 pub fn auth_device(seed_phrase: &str, device_pass: &str) {
@@ -63,36 +68,44 @@ impl App {
     pub fn new(device_pass: &str) -> App {
         let private_key = get_sk(device_pass);
         let key_pair = KeyPair::from_sk(private_key);
+
         App {
             key_pair,
-            credentials: HashMap::new()
+            credentials: HashMap::new(),
+            api: Api::new("http://localhost:3000")
         }
     }
 
-    pub fn add(&mut self, site: String, username: String, password: String) {
-        let mut site_credentials: HashMap<String, EncryptedValue> = HashMap::new();
-        site_credentials.insert(
-            username,
-            self.key_pair.encrypt(&password)
-        );
+    pub async fn add(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>>{
+        let public_key = self.key_pair.get_pk();
+        let username_enc = self.key_pair.encrypt(&username);
+        let password_enc = self.key_pair.encrypt(&password);
 
-        self.credentials.insert(site, site_credentials);
-        // TODO: Write to file
+        self.api.add_password(public_key, site, username_enc.into(), password_enc.into()).await?;
+
+        Ok(())
     }
 
-    pub fn get(self, site: String, username: Option<String>) {
-        let site_credentials = self.credentials.get(&site).unwrap();
-        // TODO: Print all usernames if username is None
-        let encrypted_password = site_credentials.get(&username.unwrap()).unwrap();
-        let password = self.key_pair.decrypt(encrypted_password);
+    pub async fn get(self, site: String, username: Option<String>) {
+        let passwords = self.api.get_passwords(self.key_pair.get_pk(), site, username).await
+            .expect("Failed to get password");
 
-        println!("{}", password);
+        for credential in passwords {
+
+            let password_enc = EncryptedValue::from(credential.password);
+            let username_enc = EncryptedValue::from(credential.username);
+
+            let password_dec = self.key_pair.decrypt(&password_enc);
+            let username_dec = self.key_pair.decrypt(&username_enc);
+
+            println!("{}: {}", username_dec, password_dec);
+        }
     }
 }
 
 fn get_sk(device_pass: &str) -> [u8;32] {
     let path_to_file = match app_dir(AppDataType::UserData, &APP_INFO, "data") {
-        Ok(path) => path.join("private_key"),
+        Ok(path) => path.join("secret_key"),
         Err(e) => panic!("Error: {}", e)
     };
 

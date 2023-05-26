@@ -1,5 +1,7 @@
+pub mod model;
+
 use std::str;
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{Engine, engine::general_purpose::URL_SAFE};
 use bip32::{Mnemonic, XPrv};
 use crypto_box::{
     aead::{Aead, AeadCore, OsRng, Payload},
@@ -8,7 +10,25 @@ use crypto_box::{
 
 pub struct EncryptedValue {
     pub cipher: String,
-    pub nonce: Nonce,
+    pub nonce: String,
+}
+
+impl From<String> for EncryptedValue {
+    fn from(text: String) -> Self {
+        let mut parts = text.split(';');
+        let cipher = parts.next().expect("Missing cipher");
+        let nonce = parts.next().expect("Missing nonce");
+        EncryptedValue {
+            cipher: cipher.to_owned(),
+            nonce: nonce.to_owned(),
+        }
+    }
+}
+
+impl Into<String> for EncryptedValue {
+    fn into(self) -> String {
+        format!("{};{}", self.cipher, self.nonce)
+    }
 }
 
 #[derive(Clone)]
@@ -73,20 +93,27 @@ impl KeyPair {
             aad: b"",
         }).unwrap();
         EncryptedValue {
-            cipher: STANDARD.encode(&enc),
-            nonce
+            cipher: URL_SAFE.encode(&enc),
+            nonce: URL_SAFE.encode(nonce)
         }
     }
 
     pub fn decrypt(&self, enc: &EncryptedValue) -> String {
-        let cipher = STANDARD.decode(enc.cipher.as_bytes()).unwrap();
+        let cipher = URL_SAFE.decode(enc.cipher.as_bytes()).unwrap();
         let personal_box = ChaChaBox::new(&self.public_key, &self.private_key);
 
-        let dec = personal_box.decrypt(&enc.nonce,Payload {
+        let nonce = URL_SAFE.decode(enc.nonce.as_bytes()).expect("Failed to decode nonce");
+        let mut content: [u8;24] = [0;24];
+        content.copy_from_slice(&nonce);
+        let dec = personal_box.decrypt(&Nonce::from(content),Payload {
             msg: cipher.as_slice(),
             aad: b"",
         }).unwrap();
 
         str::from_utf8(&dec).unwrap().to_owned()
+    }
+
+    pub fn get_pk(&self) -> String {
+        URL_SAFE.encode(&self.public_key)
     }
 }
