@@ -56,12 +56,9 @@ impl Api {
 				Err(format!("Error from API: {}", text).into())
 			}
 		}
-    
-		println!("{:?}", res);
-		Ok(())
 	}
 
-	pub async fn get_passwords(&self, public_key: String, site: String, username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
+	pub async fn get_passwords(&self, public_key: String, site: String, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
 		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
 
 		// TODO: Actual auth
