@@ -6,8 +6,7 @@ use axum::routing::post;
 use crate::AppData;
 use crate::handlers::common::HandlerResponse;
 use crate::handlers::password::PasswordController;
-use crate::model::user::User;
-
+use common::model::user::User;
 
 pub struct UserController {
     pub router: Router<AppData, Body>

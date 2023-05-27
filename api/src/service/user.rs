@@ -1,6 +1,6 @@
 use mongodb::{Client, Collection};
+use common::model::user::User;
 use crate::model::common::GetCollection;
-use crate::model::user::User;
 
 #[derive(Clone)]
 pub struct UserService {
