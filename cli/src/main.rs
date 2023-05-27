@@ -51,21 +51,34 @@ enum Commands {
     },
 }
 
-fn main() {
+
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
 
     match args.command {
         Commands::Register {device_pass} => {
-            register(&device_pass);
+            register(&device_pass).await;
         },
         Commands::Login { seed_phrase, device_pass } => {
             auth_device(&seed_phrase, &device_pass);
         },
         Commands::Add { site, username, password, device_pass } => {
-            App::new(&device_pass).add(site, username, password);
+            match App::new(&device_pass).add(site, username, password).await {
+                Ok(_) => println!("Password added successfully"),
+                Err(e) => println!("Failed to add password: {}", e)
+            }
         },
         Commands::Get { site, username, device_pass } => {
-            App::new(&device_pass).get(site, username);
+            match App::new(&device_pass).get(site, username).await {
+                Ok(passwords) => {
+                    for credential in passwords {
+                        println!("username: {}\npassword: {}\n", credential.username, credential.password);
+                    }
+                },
+                Err(e) => println!("Failed to get password: {}", e)
+            }
+
         }
     }
 
