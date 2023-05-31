@@ -58,10 +58,18 @@ async fn main() {
 
     match args.command {
         Commands::Register {device_pass} => {
-            register(&device_pass).await;
+            match register(&device_pass).await {
+                Ok(seed_phrase) =>
+                    println!("Successfully registered!\nYour seed phrase is: \n{}",
+                             seed_phrase.get_phrase()),
+                Err(e) => println!("Failed to create user: {}", e)
+            }
         },
         Commands::Login { seed_phrase, device_pass } => {
-            auth_device(&seed_phrase, &device_pass);
+            match auth_device(&seed_phrase, &device_pass).await {
+                Ok(_) => println!("Successfully authenticated!"),
+                Err(e) => println!("Failed to authenticate: {}", e)
+            }
         },
         Commands::Add { site, username, password, device_pass } => {
             match App::new(&device_pass).add(site, username, password).await {
@@ -78,7 +86,6 @@ async fn main() {
                 },
                 Err(e) => println!("Failed to get password: {}", e)
             }
-
         }
     }
 

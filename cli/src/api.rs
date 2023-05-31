@@ -58,7 +58,7 @@ impl Api {
 		}
 	}
 
-	pub async fn get_passwords(&self, public_key: String, site: String, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
+	pub async fn get_passwords(&self, public_key: String, site: Option<String>, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
 		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
 
 		// TODO: Actual auth
@@ -75,7 +75,12 @@ impl Api {
 
 		let body = res.json::<Vec<Password>>().await?;
 
-		let passwords = body.into_iter().filter(|p| p.site == site).collect();
-		Ok(passwords)
+		match site {
+			Some(site) => {
+				let passwords = body.into_iter().filter(|p| p.site == site).collect();
+				Ok(passwords)
+			},
+			None => Ok(body)
+		}
 	}
 }
