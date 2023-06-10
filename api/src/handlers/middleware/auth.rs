@@ -1,9 +1,14 @@
+use std::time::SystemTime;
 use axum::extract::{TypedHeader, Path};
 use axum::http::{Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::headers::authorization::{Authorization, Bearer};
 use axum::RequestPartsExt;
+use common::crypto::asymmetric::{public_key_from_base64, verify};
+use common::crypto::common::EncryptedValue;
+
+const SECS_TOLERANCE: u64 = 3;
 
 pub async fn only_user<B>(
 	Path(user_id): Path<String>,
@@ -15,10 +20,22 @@ pub async fn only_user<B>(
 	let auth: TypedHeader<Authorization<Bearer>> = parts.extract()
 		.await.map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-	// TODO: Verify token
+	let enc = EncryptedValue::from(auth.token().to_string());
+	let public_key = public_key_from_base64(&user_id);
+	let dec = match verify(&public_key, enc) {
+		Ok(dec) => dec,
+		Err(_) => return Err(StatusCode::UNAUTHORIZED)
+	};
 
-	println!("User id: {}", user_id);
-	println!("Authorization: {}", auth.token());
+	let dec_time: u64 = dec.parse().or_else(|_| Err(StatusCode::UNAUTHORIZED))?;
+
+	// dec should be current timestamp in seconds (with some tolerance)
+	let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+		.expect("Time went backwards").as_secs();
+
+	if time - dec_time > SECS_TOLERANCE {
+		return Err(StatusCode::UNAUTHORIZED);
+	}
 
 	let response = next.run(Request::from_parts(parts, body)).await;
 

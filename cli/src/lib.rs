@@ -30,7 +30,7 @@ pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
     let seed_phrase = SeedPhrase::new();
     let key_pair = KeyPair::new(seed_phrase.clone());
 
-    let api = Api::new("http://localhost:3000");
+    let api = Api::new("http://localhost:3000", key_pair.clone());
 
     write_password_hash(&pass_hash)?;
 
@@ -54,7 +54,7 @@ pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> Result<(), Box
     let seed_phrase = SeedPhrase::from_str(seed_phrase);
     let key_pair = KeyPair::new(seed_phrase.clone());
 
-    let api = Api::new("http://localhost:3000");
+    let api = Api::new("http://localhost:3000", key_pair.clone());
 
     write_password_hash(&pass_hash)?;
 
@@ -87,9 +87,9 @@ impl App {
         let credentials = read_app_data()?;
 
         Ok(App {
-            key_pair,
+            key_pair: key_pair.clone(),
             credentials,
-            api: Api::new("http://localhost:3000")
+            api: Api::new("http://localhost:3000", key_pair)
         })
     }
 
@@ -140,7 +140,6 @@ impl App {
         }
 
         let mut result: Vec<Password> = Vec::new();
-
 
         let credentials = self
             .credentials.entry(site.clone())
