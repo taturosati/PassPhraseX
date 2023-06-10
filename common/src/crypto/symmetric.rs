@@ -79,8 +79,7 @@ pub fn encrypt_data(key: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(enc)
 }
 
-pub fn decrypt_data(key: &str, enc: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-    let data = STANDARD.decode(enc)?;
+pub fn decrypt_data(key: &str, enc: Vec<u8>) -> Result<Vec<u8>, Box<dyn Error>> {
     let key = STANDARD.decode(key)?;
     let aes = match Aes256::new_from_slice(key.as_slice()) {
         Ok(aes) => aes,
@@ -88,11 +87,10 @@ pub fn decrypt_data(key: &str, enc: &str) -> Result<Vec<u8>, Box<dyn Error>> {
     };
 
     let block_size = Aes256::block_size();
-    let data = data.to_vec();
 
     let mut dec: Vec<u8> = Vec::new();
 
-    data.chunks_exact(block_size)
+    enc.chunks_exact(block_size)
         .enumerate()
         .for_each(|(_, chunk)| {
             let mut chunk = *GenericArray::from_slice(chunk);

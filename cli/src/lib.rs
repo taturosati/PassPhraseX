@@ -32,15 +32,13 @@ pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
 
     let api = Api::new("http://localhost:3000");
 
-
     write_password_hash(&pass_hash)?;
-
 
     let enc = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
 
     let mut sk_bytes:[u8; 32] = [0;32];
     sk_bytes.copy_from_slice(&enc.as_slice());
-    write_sk(&sk_bytes)?;
+    write_sk(key_pair.private_key.as_bytes(), &pass_hash.cipher)?;
 
     write_app_data(&HashMap::new())?;
 
@@ -49,13 +47,18 @@ pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
     Ok(seed_phrase)
 }
 
-pub async fn auth_device(seed_phrase: &str, _device_pass: &str) -> Result<(), Box<dyn Error>> {
+pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> Result<(), Box<dyn Error>> {
+    let salt = generate_salt()?;
+    let pass_hash = hash_password(device_pass, &salt)?;
+
     let seed_phrase = SeedPhrase::from_str(seed_phrase);
     let key_pair = KeyPair::new(seed_phrase.clone());
 
     let api = Api::new("http://localhost:3000");
 
-    write_sk(key_pair.private_key.as_bytes())?;
+    write_password_hash(&pass_hash)?;
+
+    write_sk(key_pair.private_key.as_bytes(), &pass_hash.cipher)?;
 
     let passwords = api.get_passwords(key_pair.get_pk(), None, None).await?;
     let mut app_data: CredentialsMap = HashMap::new();
@@ -77,7 +80,7 @@ impl App {
 
         verify_password(device_pass, &pass_hash.cipher, &pass_hash.nonce)?;
 
-        let private_key = read_sk(device_pass)?;
+        let private_key = read_sk(&pass_hash.cipher)?;
 
         let key_pair = KeyPair::from_sk(private_key);
 

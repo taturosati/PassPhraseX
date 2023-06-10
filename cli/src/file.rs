@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use app_dirs2::{app_dir, AppDataType};
 use common::crypto::common::EncryptedValue;
+use common::crypto::symmetric::{decrypt_data, encrypt_data};
 use crate::{APP_INFO, CredentialsMap};
 
 const DATA_DIR: &str = "data";
@@ -41,14 +42,18 @@ pub fn read_password_hash() -> Result<EncryptedValue, Box<dyn Error>> {
 	Ok(EncryptedValue::from(String::from_utf8(bytes)?))
 }
 
-pub fn write_sk(sk: &[u8;32]) -> Result<(), Box<dyn Error>> {
-	write_bytes(PRIVATE_KEY_FILE, sk.to_vec())
+pub fn write_sk(sk: &[u8;32], device_pass_hash: &str) -> Result<(), Box<dyn Error>> {
+	let enc = encrypt_data(device_pass_hash, sk)?;
+	write_bytes(PRIVATE_KEY_FILE, enc)
 }
 
-pub fn read_sk(_device_pass: &str) -> Result<[u8;32], Box<dyn Error>> {
-	let mut content: [u8;32] = [0;32];
+pub fn read_sk(device_pass_hash: &str) -> Result<[u8;32], Box<dyn Error>> {
 	let bytes = read_bytes(PRIVATE_KEY_FILE)?;
-	content.copy_from_slice(&bytes[..32]);
+
+	let dec = decrypt_data(device_pass_hash, bytes)?;
+
+	let mut content: [u8;32] = [0;32];
+	content.copy_from_slice(&dec[..32]);
 	Ok(content)
 }
 
