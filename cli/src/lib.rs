@@ -3,17 +3,16 @@ mod file;
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs::File;
-use std::io::{Write};
-use app_dirs2::{app_dir, AppDataType, AppInfo};
-use common::{KeyPair, SeedPhrase, EncryptedValue};
+use app_dirs2::AppInfo;
+use common::crypto::asymmetric::{KeyPair, SeedPhrase};
+use common::crypto::common::{EncryptedValue};
 use api::Api;
 use std::string::String;
+use common::crypto::symmetric::{encrypt_data, generate_salt, hash_password, verify_password};
 use common::model::password::Password;
-use crate::file::{read_app_data, read_sk, write_app_data, write_sk};
+use crate::file::{read_app_data, read_sk, write_app_data, write_sk, write_password_hash, read_password_hash};
 
 pub const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Matías Rosati"};
-
 
 // Map of site -> Map of username -> password
 pub type CredentialsMap = HashMap<String, HashMap<EncryptedValue, EncryptedValue>>;
@@ -24,58 +23,74 @@ pub struct App<> {
     api: Api
 }
 
-pub async fn register(_device_pass: &str) -> SeedPhrase {
+pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
+    let salt = generate_salt()?;
+    let pass_hash = hash_password(device_pass, &salt)?;
+
     let seed_phrase = SeedPhrase::new();
     let key_pair = KeyPair::new(seed_phrase.clone());
 
     let api = Api::new("http://localhost:3000");
 
-    write_sk(key_pair.private_key.as_bytes())
-        .expect("Failed to save private key to file");
+    write_password_hash(&pass_hash)?;
 
-    write_app_data(&HashMap::new())
-        .expect("Failed to save app data to file");
+    let enc = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
 
-    api.create_user(key_pair.get_pk()).await
-        .expect("Failed to create user");
+    let mut sk_bytes:[u8; 32] = [0;32];
+    sk_bytes.copy_from_slice(&enc.as_slice());
+    write_sk(key_pair.private_key.as_bytes(), &pass_hash.cipher)?;
 
-    seed_phrase
+    write_app_data(&HashMap::new())?;
+
+    api.create_user(key_pair.get_pk()).await?;
+
+    Ok(seed_phrase)
 }
 
-pub fn auth_device(seed_phrase: &str, _device_pass: &str) {
+pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> Result<(), Box<dyn Error>> {
+    let salt = generate_salt()?;
+    let pass_hash = hash_password(device_pass, &salt)?;
+
     let seed_phrase = SeedPhrase::from_str(seed_phrase);
     let key_pair = KeyPair::new(seed_phrase.clone());
 
-    let path_to_file = match app_dir(AppDataType::UserData, &APP_INFO, "data") {
-        Ok(path) => path.join("private_key"),
-        Err(e) => panic!("Error: {}", e)
-    };
+    let api = Api::new("http://localhost:3000");
 
-    match File::create(path_to_file) {
-        Ok(mut file) => {
-            match file.write_all(key_pair.private_key.as_bytes()) {
-                Ok(_) => println!("Successfully authenticated device!"),
-                Err(e) => panic!("Error: {}", e)
-            }
-        },
-        Err(e) => panic!("Error: {}", e)
+    write_password_hash(&pass_hash)?;
+
+    write_sk(key_pair.private_key.as_bytes(), &pass_hash.cipher)?;
+
+    let passwords = api.get_passwords(key_pair.get_pk(), None, None).await?;
+    let mut app_data: CredentialsMap = HashMap::new();
+
+    for password in passwords {
+        app_data.entry(password.site)
+            .or_insert(HashMap::new())
+            .insert(password.username.into(), password.password.into());
     }
+
+    write_app_data(&app_data)?;
+
+    Ok(())
 }
 
 impl App {
-    pub fn new(device_pass: &str) -> App {
-        let private_key = read_sk(device_pass)
-            .expect("Failed to read private key from file");
+    pub fn new(device_pass: &str) -> Result<App, Box<dyn Error>> {
+        let pass_hash = read_password_hash()?;
+
+        verify_password(device_pass, &pass_hash.cipher, &pass_hash.nonce)?;
+
+        let private_key = read_sk(&pass_hash.cipher)?;
+
         let key_pair = KeyPair::from_sk(private_key);
 
-        let credentials = read_app_data()
-            .expect("Failed to read app data from file");
+        let credentials = read_app_data()?;
 
-        App {
+        Ok(App {
             key_pair,
             credentials,
             api: Api::new("http://localhost:3000")
-        }
+        })
     }
 
     pub async fn add(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>>{
@@ -118,7 +133,7 @@ impl App {
             None => {}
         };
 
-        let passwords = self.api.get_passwords(self.key_pair.get_pk(), site.clone(), username).await?;
+        let passwords = self.api.get_passwords(self.key_pair.get_pk(), Some(site.clone()), username).await?;
 
         if passwords.is_empty() {
             return Err("No passwords found".into());
