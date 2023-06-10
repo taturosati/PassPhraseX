@@ -32,7 +32,7 @@ fn read_bytes(file_name: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 	Ok(bytes)
 }
 
-pub fn write_password_hash(hash: EncryptedValue) -> Result<(), Box<dyn Error>> {
+pub fn write_password_hash(hash: &EncryptedValue) -> Result<(), Box<dyn Error>> {
 	write_bytes(PASSWORD_HASH_FILE, hash.to_string().as_bytes().to_vec())
 }
 

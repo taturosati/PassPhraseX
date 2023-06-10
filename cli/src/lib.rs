@@ -8,7 +8,7 @@ use common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use common::crypto::common::{EncryptedValue};
 use api::Api;
 use std::string::String;
-use common::crypto::symmetric::{generate_salt, hash_password, verify_password};
+use common::crypto::symmetric::{encrypt_data, generate_salt, hash_password, verify_password};
 use common::model::password::Password;
 use crate::file::{read_app_data, read_sk, write_app_data, write_sk, write_password_hash, read_password_hash};
 
@@ -32,9 +32,15 @@ pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
 
     let api = Api::new("http://localhost:3000");
 
-    write_password_hash(pass_hash)?;
 
-    write_sk(key_pair.private_key.as_bytes())?;
+    write_password_hash(&pass_hash)?;
+
+
+    let enc = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
+
+    let mut sk_bytes:[u8; 32] = [0;32];
+    sk_bytes.copy_from_slice(&enc.as_slice());
+    write_sk(&sk_bytes)?;
 
     write_app_data(&HashMap::new())?;
 

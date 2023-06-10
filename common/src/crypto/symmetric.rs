@@ -1,6 +1,11 @@
 use std::error::Error;
+use aes::Aes256;
+use aes::cipher::{BlockEncrypt, BlockDecrypt, BlockSizeUser};
+use aes::cipher::generic_array::GenericArray;
 use argon2::{self, Config, hash_raw, verify_raw};
 use crate::crypto::common::EncryptedValue;
+use crypto_box::aead::KeyInit;
+
 use base64::{Engine, engine::general_purpose::STANDARD};
 use rand_core::{OsRng, RngCore};
 
@@ -49,4 +54,51 @@ pub fn generate_salt() -> Result<String, Box<dyn Error>> {
     let mut salt: [u8; SALT_BYTES] = [0; SALT_BYTES];
     OsRng.fill_bytes(&mut salt);
     Ok(STANDARD.encode(salt.as_slice()))
+}
+
+pub fn encrypt_data(key: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+    let key = STANDARD.decode(key)?;
+    let aes = match Aes256::new_from_slice(key.as_slice()) {
+        Ok(aes) => aes,
+        Err(_) => return Err("Invalid key".into())
+    };
+
+    let block_size = Aes256::block_size();
+    let data = data.to_vec();
+
+    let mut enc: Vec<u8> = Vec::new();
+
+    data.chunks_exact(block_size)
+        .enumerate()
+        .for_each(|(_, chunk)| {
+            let mut chunk = *GenericArray::from_slice(chunk);
+            aes.encrypt_block(&mut chunk);
+            enc.append(&mut chunk.as_slice().to_vec());
+        });
+
+    Ok(enc)
+}
+
+pub fn decrypt_data(key: &str, enc: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+    let data = STANDARD.decode(enc)?;
+    let key = STANDARD.decode(key)?;
+    let aes = match Aes256::new_from_slice(key.as_slice()) {
+        Ok(aes) => aes,
+        Err(_) => return Err("Invalid key".into())
+    };
+
+    let block_size = Aes256::block_size();
+    let data = data.to_vec();
+
+    let mut dec: Vec<u8> = Vec::new();
+
+    data.chunks_exact(block_size)
+        .enumerate()
+        .for_each(|(_, chunk)| {
+            let mut chunk = *GenericArray::from_slice(chunk);
+            aes.decrypt_block(&mut chunk);
+            dec.append(&mut chunk.as_slice().to_vec());
+        });
+
+    Ok(dec)
 }

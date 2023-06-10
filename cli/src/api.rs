@@ -1,7 +1,7 @@
 // Wrapper functions to call api
 use std::collections::HashMap;
 use std::error::Error;
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Client, Response, StatusCode, Url};
 use common::model::password::Password;
 
 pub struct Api {
@@ -22,10 +22,8 @@ impl Api {
 
 		let mut body = HashMap::new();
 		body.insert("public_key", public_key);
-		match self.client.post(url).json(&body).send().await {
-			Ok(_) => Ok(()),
-			Err(e) => Err(Box::new(e)),
-		}
+		let res = self.client.post(url).json(&body).send().await?;
+		validate_response(res, StatusCode::CREATED).await
 	}
 
 	pub async fn add_password(
@@ -49,13 +47,7 @@ impl Api {
 			.json(&body).send().await?;
 
 		// TODO: Map more errors
-		match res.status() {
-			StatusCode::CREATED => Ok(()),
-			_ => {
-				let text = res.text().await.unwrap_or("".to_string());
-				Err(format!("Error from API: {}", text).into())
-			}
-		}
+		validate_response(res, StatusCode::CREATED).await
 	}
 
 	pub async fn get_passwords(&self, public_key: String, site: Option<String>, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
@@ -83,4 +75,14 @@ impl Api {
 			None => Ok(body)
 		}
 	}
+}
+
+
+async fn validate_response(res: Response, status_code: StatusCode) -> Result<(), Box<dyn Error>> {
+	if res.status() != status_code {
+		let text = res.text().await?;
+		return Err(format!("Error from API: {}", text).into());
+	}
+
+	Ok(())
 }
