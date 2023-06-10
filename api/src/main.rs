@@ -29,13 +29,12 @@ async fn main() {
     let app = Router::new()
         .merge(user_controller.router)
         .with_state(AppData {
-        user_service: UserService::new(&client),
-        password_service: PasswordService::new(&client)
-    });
+            user_service: UserService::new(&client),
+            password_service: PasswordService::new(&client)
+        });
 
     // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().expect("Failed to parse address"))
         .serve(app.into_make_service())
-        .await
-        .expect("Failed to start server");
+        .await.expect("Failed to start server");
 }
