@@ -4,7 +4,7 @@ mod file;
 use std::collections::HashMap;
 use std::error::Error;
 use app_dirs2::AppInfo;
-use common::{KeyPair, SeedPhrase, EncryptedValue};
+use common::crypto::asymmetric::{KeyPair, SeedPhrase, EncryptedValue};
 use api::Api;
 use std::string::String;
 use common::model::password::Password;
