@@ -3,10 +3,11 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
 use app_dirs2::{app_dir, AppDataType};
-use common::crypto::asymmetric::EncryptedValue;
+use common::crypto::common::EncryptedValue;
 use crate::{APP_INFO, CredentialsMap};
 
 const DATA_DIR: &str = "data";
+const PASSWORD_HASH_FILE: &str = "device_pass";
 const PRIVATE_KEY_FILE: &str = "private_key";
 const DATA_FILE: &str = "data.json";
 
@@ -29,6 +30,15 @@ fn read_bytes(file_name: &str) -> Result<Vec<u8>, Box<dyn Error>> {
 	file.read_to_end(&mut bytes)?;
 
 	Ok(bytes)
+}
+
+pub fn write_password_hash(hash: EncryptedValue) -> Result<(), Box<dyn Error>> {
+	write_bytes(PASSWORD_HASH_FILE, hash.to_string().as_bytes().to_vec())
+}
+
+pub fn read_password_hash() -> Result<EncryptedValue, Box<dyn Error>> {
+	let bytes = read_bytes(PASSWORD_HASH_FILE)?;
+	Ok(EncryptedValue::from(String::from_utf8(bytes)?))
 }
 
 pub fn write_sk(sk: &[u8;32]) -> Result<(), Box<dyn Error>> {

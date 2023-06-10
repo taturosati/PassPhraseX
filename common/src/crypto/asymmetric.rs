@@ -1,35 +1,9 @@
 use std::str;
 use base64::{Engine, engine::general_purpose::URL_SAFE};
 use bip32::{Mnemonic, XPrv};
-use crypto_box::{
-    aead::{Aead, AeadCore, OsRng, Payload},
-    ChaChaBox, Nonce, PublicKey, SecretKey
-};
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize, Hash, Eq, PartialEq, Clone)]
-pub struct EncryptedValue {
-    pub cipher: String,
-    pub nonce: String,
-}
-
-impl From<String> for EncryptedValue {
-    fn from(text: String) -> Self {
-        let mut parts = text.split(';');
-        let cipher = parts.next().expect("Missing cipher");
-        let nonce = parts.next().expect("Missing nonce");
-        EncryptedValue {
-            cipher: cipher.to_owned(),
-            nonce: nonce.to_owned(),
-        }
-    }
-}
-
-impl Into<String> for EncryptedValue {
-    fn into(self) -> String {
-        format!("{};{}", self.cipher, self.nonce)
-    }
-}
+use crypto_box::aead::{Aead, AeadCore, OsRng, Payload};
+use crypto_box::{ChaChaBox, Nonce, PublicKey, SecretKey};
+use crate::crypto::common::EncryptedValue;
 
 #[derive(Clone)]
 pub struct SeedPhrase {
