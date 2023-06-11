@@ -61,6 +61,15 @@ enum Commands {
         #[clap(short, long)]
         device_pass: String,
     },
+    /// Delete a password
+    Delete {
+        #[clap(short, long)]
+        site: String,
+        #[clap(short, long)]
+        username: String,
+        #[clap(short, long)]
+        device_pass: String,
+    },
 }
 
 
@@ -103,6 +112,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             match App::new(&device_pass).await?.edit(site, username, password).await {
                 Ok(_) => println!("Password edited successfully"),
                 Err(e) => println!("Failed to edit password: {}", e)
+            }
+        },
+        Commands::Delete { site, username, device_pass } => {
+            match App::new(&device_pass).await?.delete(site, username).await {
+                Ok(_) => println!("Password deleted successfully"),
+                Err(e) => println!("Failed to delete password: {}", e)
             }
         },
     };

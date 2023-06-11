@@ -138,6 +138,19 @@ impl App {
                     Some(username) => {
                         let id = self.key_pair.hash(&format!("{}{}", site, username))?;
                         let password = passwords.get(&id).ok_or("Password not found")?;
+
+                        let username_dec = self.key_pair.decrypt(
+                            &EncryptedValue::from(password.username.clone()));
+                        let password_dec = self.key_pair.decrypt(
+                            &EncryptedValue::from(password.password.clone()));
+
+                        let password = Password {
+                            _id: id.to_string(),
+                            site: site.clone(),
+                            username: username_dec,
+                            password: password_dec
+                        };
+
                         Ok(vec![password.clone()])
                     },
                     None => {
@@ -177,12 +190,32 @@ impl App {
             password_enc.clone().into()
         ).await?;
 
-        // TODO: update local data without sync -> Need to modify CredentialsMap to use id
-        // sync_with_api(self.api, self.key_pair.clone()).await?;
         self.credentials.entry(site)
             .or_insert(HashMap::new()) // Should never happen
             .entry(site_username_hash)
             .and_modify(|e| e.password = password_enc.clone().into());
+
+        write_app_data(&self.credentials).expect("Failed to save app data to file");
+
+        Ok(())
+    }
+
+    pub async fn delete(&mut self, site: String, username: String) -> Result<(), Box<dyn Error>> {
+        self.verify_credentials_exist(&site, &username)?;
+
+        let public_key = self.key_pair.get_pk();
+        let site_username_hash = self.key_pair.hash(&format!("{}{}", site, username))?;
+
+        self.api.delete_password(
+            public_key,
+            site_username_hash.clone()
+        ).await?;
+
+        self.credentials.entry(site)
+            .or_insert(HashMap::new()) // Should never happen
+            .remove(&site_username_hash);
+
+        write_app_data(&self.credentials).expect("Failed to save app data to file");
 
         Ok(())
     }
@@ -198,7 +231,6 @@ impl App {
                 Err("Credentials not found".into())
             }
         }
-
     }
 
     fn verify_credentials_dont_exist(&self, site: &str, username: &str) -> Result<(), Box<dyn Error>> {
