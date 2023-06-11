@@ -34,6 +34,7 @@ impl PasswordService {
 		let update = doc!{
 			"$addToSet": {
 				"passwords": {
+					"_id": password._id.clone(),
 					"site": password.site.clone(),
 					"username": password.username.clone(),
 					"password": password.password.clone()
