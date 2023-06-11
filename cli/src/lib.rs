@@ -15,7 +15,7 @@ use crate::file::{read_app_data, read_sk, write_app_data, write_sk, write_passwo
 pub const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Matías Rosati"};
 
 // Map of site -> Map of username -> password
-pub type CredentialsMap = HashMap<String, HashMap<EncryptedValue, EncryptedValue>>;
+pub type CredentialsMap = HashMap<String, HashMap<String, Password>>;
 
 pub struct App<> {
     key_pair: KeyPair,
@@ -70,9 +70,9 @@ async fn sync_with_api(api: Api, key_pair: KeyPair) -> Result<CredentialsMap, Bo
     let mut credentials: CredentialsMap = HashMap::new();
 
     for password in passwords {
-        credentials.entry(password.site)
+        credentials.entry(password.site.clone())
             .or_insert(HashMap::new())
-            .insert(password.username.into(), password.password.into());
+            .insert(password._id.clone(), password.clone());
     };
 
     write_app_data(&credentials)?;
@@ -112,7 +112,7 @@ impl App {
         let site_username_hash = self.key_pair.hash(&format!("{}{}", site, username))?;
 
         let password = Password {
-            _id: site_username_hash,
+            _id: site_username_hash.clone(),
             site: site.clone(),
             username: username_enc.clone().into(),
             password: password_enc.clone().into()
@@ -120,12 +120,12 @@ impl App {
 
         self.api.add_password(
             public_key,
-            password
+            password.clone()
         ).await?;
 
         self.credentials.entry(site)
             .or_insert(HashMap::new())
-            .insert(username_enc, password_enc);
+            .insert(site_username_hash, password);
 
         write_app_data(&self.credentials).expect("Failed to save app data to file");
         Ok(())
@@ -134,23 +134,29 @@ impl App {
     pub async fn get(&mut self, site: String, username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
         match self.credentials.get(&site) {
             Some(passwords) => {
-                let mut result: Vec<Password> = Vec::new();
-                for (username_enc, password_enc) in passwords {
-                    let username_dec = self.key_pair.decrypt(&username_enc);
-                    let password_dec = self.key_pair.decrypt(&password_enc);
+                match username {
+                    Some(username) => {
+                        let id = self.key_pair.hash(&format!("{}{}", site, username))?;
+                        let password = passwords.get(&id).ok_or("Password not found")?;
+                        Ok(vec![password.clone()])
+                    },
+                    None => {
+                        let mut result: Vec<Password> = Vec::new();
+                        for (id, password) in passwords {
+                            let username_dec = self.key_pair.decrypt(&EncryptedValue::from(password.username.clone()));
+                            let password_dec = self.key_pair.decrypt(&EncryptedValue::from(password.password.clone()));
 
-                    let _id = hash(&format!("{}{}", site, username_dec),
-                                   &self.key_pair.get_pk().to_string())?.cipher;
+                            result.push(Password {
+                                _id: id.to_string(),
+                                site: site.clone(),
+                                username: username_dec,
+                                password: password_dec
+                            });
+                        }
 
-                    result.push(Password {
-                        _id,
-                        site: site.clone(),
-                        username: username_dec,
-                        password: password_dec
-                    });
+                        Ok(result)
+                    }
                 }
-
-                Ok(result)
             },
             None => {
                 Err("No passwords found".into())
@@ -164,15 +170,19 @@ impl App {
         let public_key = self.key_pair.get_pk();
         let site_username_hash = self.key_pair.hash(&format!("{}{}", site, username))?;
 
-        let password = self.key_pair.encrypt(&password);
+        let password_enc = self.key_pair.encrypt(&password);
         self.api.edit_password(
             public_key,
-            site_username_hash,
-            password.into()
+            site_username_hash.clone(),
+            password_enc.clone().into()
         ).await?;
 
         // TODO: update local data without sync -> Need to modify CredentialsMap to use id
         // sync_with_api(self.api, self.key_pair.clone()).await?;
+        self.credentials.entry(site)
+            .or_insert(HashMap::new()) // Should never happen
+            .entry(site_username_hash)
+            .and_modify(|e| e.password = password_enc.clone().into());
 
         Ok(())
     }
@@ -180,17 +190,15 @@ impl App {
     fn verify_credentials_exist(&self, site: &str, username: &str) -> Result<(), Box<dyn Error>> {
         match self.credentials.get(site) {
             Some(passwords) => {
-                for (username_enc, _) in passwords {
-                    let username_dec = self.key_pair.decrypt(&username_enc);
-                    if username_dec == username {
-                        return Ok(());
-                    }
-                }
+                let id = self.key_pair.hash(&format!("{}{}", site, username))?;
+                passwords.get(&id).ok_or("Credentials not found")?;
+                Ok(())
             },
-            None => {}
-        };
+            None => {
+                Err("Credentials not found".into())
+            }
+        }
 
-        Err("Credentials not found".into())
     }
 
     fn verify_credentials_dont_exist(&self, site: &str, username: &str) -> Result<(), Box<dyn Error>> {
