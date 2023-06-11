@@ -6,32 +6,33 @@ use argon2::{self, Config, hash_raw, verify_raw};
 use crate::crypto::common::EncryptedValue;
 use crypto_box::aead::KeyInit;
 
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{Engine, engine::general_purpose::URL_SAFE};
 use rand_core::{OsRng, RngCore};
-
-pub fn hash_password(password: &str, salt: &str) -> Result<EncryptedValue, Box<dyn Error>> {
+pub fn hash(message: &str, salt: &str) -> Result<EncryptedValue, Box<dyn Error>> {
     let config = Config::default();
-    let salt = match STANDARD.decode(salt) {
+    let salt = match URL_SAFE.decode(salt) {
         Ok(salt) => salt,
         Err(e) => return Err(Box::new(e)),
     };
 
-    match hash_raw(password.as_bytes(), salt.as_slice(), &config) {
+    match hash_raw(message.as_bytes(), salt.as_slice(), &config) {
         Ok(hash) => Ok(EncryptedValue {
-            cipher: STANDARD.encode(hash),
-            nonce: STANDARD.encode(salt),
+            cipher: URL_SAFE.encode(hash),
+            nonce: URL_SAFE.encode(salt),
         }),
         Err(e) => Err(Box::new(e)),
     }
 }
 
+
+
 pub fn verify_password(password: &str, hash: &str, salt: &str) -> Result<(), Box<dyn Error>> {
-    let hash = match STANDARD.decode(hash) {
+    let hash = match URL_SAFE.decode(hash) {
         Ok(hash) => hash,
         Err(e) => return Err(Box::new(e)),
     };
 
-    let salt = match STANDARD.decode(salt) {
+    let salt = match URL_SAFE.decode(salt) {
         Ok(salt) => salt,
         Err(e) => return Err(Box::new(e)),
     };
@@ -53,11 +54,11 @@ const SALT_BYTES: usize = 16;
 pub fn generate_salt() -> Result<String, Box<dyn Error>> {
     let mut salt: [u8; SALT_BYTES] = [0; SALT_BYTES];
     OsRng.fill_bytes(&mut salt);
-    Ok(STANDARD.encode(salt.as_slice()))
+    Ok(URL_SAFE.encode(salt.as_slice()))
 }
 
 pub fn encrypt_data(key: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
-    let key = STANDARD.decode(key)?;
+    let key = URL_SAFE.decode(key)?;
     let aes = match Aes256::new_from_slice(key.as_slice()) {
         Ok(aes) => aes,
         Err(_) => return Err("Invalid key".into())
@@ -80,7 +81,7 @@ pub fn encrypt_data(key: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
 }
 
 pub fn decrypt_data(key: &str, enc: Vec<u8>) -> Result<Vec<u8>, Box<dyn Error>> {
-    let key = STANDARD.decode(key)?;
+    let key = URL_SAFE.decode(key)?;
     let aes = match Aes256::new_from_slice(key.as_slice()) {
         Ok(aes) => aes,
         Err(_) => return Err("Invalid key".into())

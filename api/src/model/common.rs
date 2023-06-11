@@ -8,6 +8,7 @@ pub struct DatabaseConfig {
 
 impl DatabaseConfig {
     pub fn new() -> Self {
+        // TODO: Read from env
         let uri = "mongodb://localhost:27017".to_string();
         Self {
             uri
