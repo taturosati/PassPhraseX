@@ -7,6 +7,7 @@ use std::error::Error;
 use clap::{Parser, Subcommand};
 
 use cli::{App, auth_device, register};
+use common::generator::generate_password;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -70,6 +71,11 @@ enum Commands {
         #[clap(short, long)]
         device_pass: String,
     },
+    /// Generate a random password
+    Generate {
+        #[clap(short, long)]
+        length: Option<usize>,
+    }
 }
 
 
@@ -120,6 +126,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Err(e) => println!("Failed to delete password: {}", e)
             }
         },
+        Commands::Generate {length} => {
+            println!("{}", generate_password(length.unwrap_or(16)));
+        }
     };
 
     Ok(())

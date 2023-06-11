@@ -332,6 +332,7 @@ dependencies = [
  "base64 0.21.0",
  "bip32",
  "crypto_box",
+ "rand",
  "rand_core 0.6.4",
  "rust-argon2",
  "serde",
