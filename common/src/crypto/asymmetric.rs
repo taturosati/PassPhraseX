@@ -5,6 +5,7 @@ use bip32::{Mnemonic, XPrv};
 use crypto_box::aead::{Aead, AeadCore, OsRng, Payload};
 use crypto_box::{ChaChaBox, Nonce, PublicKey, SecretKey};
 use crate::crypto::common::EncryptedValue;
+use crate::crypto::symmetric::hash;
 
 #[derive(Clone)]
 pub struct SeedPhrase {
@@ -101,6 +102,10 @@ impl KeyPair {
             cipher: URL_SAFE.encode(&enc),
             nonce: URL_SAFE.encode(nonce)
         }
+    }
+
+    pub fn hash(&self, message: &str) -> Result<String, Box<dyn Error>> {
+        Ok(hash(message, &URL_SAFE.encode(&self.public_key))?.cipher)
     }
 
     pub fn get_pk(&self) -> String {
