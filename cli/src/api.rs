@@ -34,16 +34,15 @@ impl Api {
 	pub async fn add_password(
 		&self,
 		public_key: String,
-		site: String,
-		username: String,
-		password: String
+		password: Password
 	) -> Result<(), Box<dyn Error>> {
 		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
 
 		let mut body = HashMap::new();
-		body.insert("site", site);
-		body.insert("username", username);
-		body.insert("password", password);
+		body.insert("_id", password._id);
+		body.insert("site", password.site);
+		body.insert("username", password.username);
+		body.insert("password", password.password);
 
 		let res = self.client.post(url)
 			.header("Authorization", self.auth_header())
@@ -52,7 +51,7 @@ impl Api {
 		validate_response(res, StatusCode::CREATED).await
 	}
 
-	pub async fn get_passwords(&self, public_key: String, site: Option<String>, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
+	pub async fn get_passwords(&self, public_key: String) -> Result<Vec<Password>, Box<dyn Error>> {
 		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
 
 		let res = self.client.get(url)
@@ -67,14 +66,7 @@ impl Api {
 		}
 
 		let body = res.json::<Vec<Password>>().await?;
-
-		match site {
-			Some(site) => {
-				let passwords = body.into_iter().filter(|p| p.site == site).collect();
-				Ok(passwords)
-			},
-			None => Ok(body)
-		}
+		Ok(body)
 	}
 
 	fn auth_header(&self) -> String {
