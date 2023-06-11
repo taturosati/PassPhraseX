@@ -73,13 +73,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         },
         Commands::Add { site, username, password, device_pass } => {
-            match App::new(&device_pass)?.add(site, username, password).await {
+            match App::new(&device_pass).await?.add(site, username, password).await {
                 Ok(_) => println!("Password added successfully"),
                 Err(e) => println!("Failed to add password: {}", e)
             }
         },
         Commands::Get { site, username, device_pass } => {
-            match App::new(&device_pass)?.get(site, username).await {
+            match App::new(&device_pass).await?.get(site, username).await {
                 Ok(passwords) => {
                     for credential in passwords {
                         println!("username: {}\npassword: {}\n", credential.username, credential.password);

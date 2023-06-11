@@ -13,7 +13,8 @@ pub struct Api {
 }
 
 impl Api {
-	pub fn new(base_url: &str, key_pair: KeyPair) -> Self {
+	pub fn new(key_pair: KeyPair) -> Self {
+		let base_url = "http://localhost:3000"; // TODO: Read from env
 		Self {
 			client: Client::new(),
 			base_url: Url::parse(base_url).unwrap(),
