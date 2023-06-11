@@ -20,13 +20,6 @@ impl HandlerResponse {
             }
         }
     }
-
-    pub fn empty(status: StatusCode) -> Self {
-        Self {
-            status,
-            body: None,
-        }
-    }
 }
 
 impl IntoResponse for HandlerResponse {
