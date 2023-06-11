@@ -69,6 +69,16 @@ impl Api {
 		Ok(body)
 	}
 
+	pub async fn edit_password(&self, public_key: String, password_id: String, password: String) -> Result<(), Box<dyn Error>> {
+		let url = self.base_url.join(&format!("/users/{}/passwords/{}/password", public_key, password_id))?;
+
+		let res = self.client.put(url)
+			.header("Authorization", self.auth_header())
+			.body(password).send().await?;
+
+		validate_response(res, StatusCode::NO_CONTENT).await
+	}
+
 	fn auth_header(&self) -> String {
 		format!("Bearer {}", self.auth_token())
 	}

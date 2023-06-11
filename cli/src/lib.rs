@@ -103,7 +103,7 @@ impl App {
     }
 
     pub async fn add(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>> {
-        self.verify_credentials_dont_exist(&site, &username).await?;
+        self.verify_credentials_dont_exist(&site, &username)?;
 
         let public_key = self.key_pair.get_pk();
         let username_enc = self.key_pair.encrypt(&username);
@@ -150,56 +150,53 @@ impl App {
                     });
                 }
 
-                return Ok(result);
+                Ok(result)
             },
-            None => {}
-        };
-
-        let passwords = self.api.get_passwords(self.key_pair.get_pk()).await?;
-
-        if passwords.is_empty() {
-            return Err("No passwords found".into());
+            None => {
+                Err("No passwords found".into())
+            }
         }
-
-        let mut result: Vec<Password> = Vec::new();
-
-        let credentials = self
-            .credentials.entry(site.clone())
-            .or_insert(HashMap::new());
-
-        for credential in passwords {
-            let password_enc = EncryptedValue::from(credential.password);
-            let username_enc = EncryptedValue::from(credential.username);
-
-            credentials.insert(username_enc.clone(), password_enc.clone());
-
-            let password_dec = self.key_pair.decrypt(&password_enc);
-            let username_dec = self.key_pair.decrypt(&username_enc);
-
-            result.push(Password {
-                _id: credential._id,
-                site: site.clone(),
-                username: username_dec,
-                password: password_dec
-            });
-        };
-
-        Ok(result)
     }
 
-    async fn verify_credentials_dont_exist(&self, site: &str, username: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn edit(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>> {
+        self.verify_credentials_exist(&site, &username)?;
+
+        let public_key = self.key_pair.get_pk();
+        let site_username_hash = self.key_pair.hash(&format!("{}{}", site, username))?;
+
+        let password = self.key_pair.encrypt(&password);
+        self.api.edit_password(
+            public_key,
+            site_username_hash,
+            password.into()
+        ).await?;
+
+        // TODO: update local data without sync -> Need to modify CredentialsMap to use id
+        // sync_with_api(self.api, self.key_pair.clone()).await?;
+
+        Ok(())
+    }
+
+    fn verify_credentials_exist(&self, site: &str, username: &str) -> Result<(), Box<dyn Error>> {
         match self.credentials.get(site) {
             Some(passwords) => {
                 for (username_enc, _) in passwords {
                     let username_dec = self.key_pair.decrypt(&username_enc);
                     if username_dec == username {
-                        return Err("Credentials already exist".into());
+                        return Ok(());
                     }
                 }
             },
             None => {}
         };
 
-        Ok(())
+        Err("Credentials not found".into())
+    }
+
+    fn verify_credentials_dont_exist(&self, site: &str, username: &str) -> Result<(), Box<dyn Error>> {
+        match self.verify_credentials_exist(site, username) {
+            Ok(_) => Err("Credentials already exist".into()),
+            Err(_) => Ok(())
+        }
     }
 }
