@@ -13,3 +13,4 @@ serde = { version = "1.0.163", features = ["serde_derive"] }
 base64 = "0.21.0"
 rust-argon2 = "1.0"
 aes = "0.8.2"
+rand = "0.8.5"

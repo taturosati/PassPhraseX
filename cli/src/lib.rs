@@ -3,11 +3,13 @@ mod file;
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::string::String;
+
 use app_dirs2::AppInfo;
+
+use api::Api;
 use common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use common::crypto::common::{EncryptedValue};
-use api::Api;
-use std::string::String;
 use common::crypto::symmetric::{encrypt_data, generate_salt, hash, verify_password};
 use common::model::password::Password;
 use crate::file::{read_app_data, read_sk, write_app_data, write_sk, write_password_hash, read_password_hash};

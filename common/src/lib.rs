@@ -3,3 +3,4 @@ extern crate aes;
 
 pub mod model;
 pub mod crypto;
+pub mod generator;
