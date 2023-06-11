@@ -1,19 +1,24 @@
 // Wrapper functions to call api
 use std::collections::HashMap;
 use std::error::Error;
+use std::time::SystemTime;
 use reqwest::{Client, Response, StatusCode, Url};
+use common::crypto::asymmetric::KeyPair;
 use common::model::password::Password;
 
 pub struct Api {
 	client: Client,
 	base_url: Url,
+	key_pair: KeyPair
 }
 
 impl Api {
-	pub fn new(base_url: &str) -> Self {
+	pub fn new(key_pair: KeyPair) -> Self {
+		let base_url = "http://localhost:3000"; // TODO: Read from env
 		Self {
 			client: Client::new(),
 			base_url: Url::parse(base_url).unwrap(),
+			key_pair
 		}
 	}
 
@@ -40,28 +45,24 @@ impl Api {
 		body.insert("username", username);
 		body.insert("password", password);
 
-
-		// TODO: Actual auth
 		let res = self.client.post(url)
-			.header("Authorization", "Bearer 1234")
+			.header("Authorization", self.auth_header())
 			.json(&body).send().await?;
 
-		// TODO: Map more errors
 		validate_response(res, StatusCode::CREATED).await
 	}
 
 	pub async fn get_passwords(&self, public_key: String, site: Option<String>, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
 		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
 
-		// TODO: Actual auth
 		let res = self.client.get(url)
-			.header("Authorization", "Bearer 1234")
+			.header("Authorization", self.auth_header())
 			.send().await?;
 
 		match res.status() {
 			StatusCode::OK => (),
 			_ => {
-				return Err("Error from API".into());
+				return Err(format!("Error from API: {}", res.text().await?).into());
 			}
 		}
 
@@ -74,6 +75,16 @@ impl Api {
 			},
 			None => Ok(body)
 		}
+	}
+
+	fn auth_header(&self) -> String {
+		format!("Bearer {}", self.auth_token())
+	}
+
+	fn auth_token(&self) -> String {
+		let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+			.unwrap().as_secs();
+		self.key_pair.sign(&time.to_string()).to_string()
 	}
 }
 

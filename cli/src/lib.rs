@@ -30,7 +30,7 @@ pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
     let seed_phrase = SeedPhrase::new();
     let key_pair = KeyPair::new(seed_phrase.clone());
 
-    let api = Api::new("http://localhost:3000");
+    let api = Api::new(key_pair.clone());
 
     write_password_hash(&pass_hash)?;
 
@@ -54,28 +54,34 @@ pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> Result<(), Box
     let seed_phrase = SeedPhrase::from_str(seed_phrase);
     let key_pair = KeyPair::new(seed_phrase.clone());
 
-    let api = Api::new("http://localhost:3000");
+    let api = Api::new(key_pair.clone());
 
     write_password_hash(&pass_hash)?;
 
     write_sk(key_pair.private_key.as_bytes(), &pass_hash.cipher)?;
 
-    let passwords = api.get_passwords(key_pair.get_pk(), None, None).await?;
-    let mut app_data: CredentialsMap = HashMap::new();
-
-    for password in passwords {
-        app_data.entry(password.site)
-            .or_insert(HashMap::new())
-            .insert(password.username.into(), password.password.into());
-    }
-
-    write_app_data(&app_data)?;
+    sync_with_api(api, key_pair.clone()).await?;
 
     Ok(())
 }
 
+async fn sync_with_api(api: Api, key_pair: KeyPair) -> Result<CredentialsMap, Box<dyn Error>> {
+    let passwords = api.get_passwords(key_pair.get_pk(), None, None).await?;
+    let mut credentials: CredentialsMap = HashMap::new();
+
+    for password in passwords {
+        credentials.entry(password.site)
+            .or_insert(HashMap::new())
+            .insert(password.username.into(), password.password.into());
+    };
+
+    write_app_data(&credentials)?;
+
+    Ok(credentials)
+}
+
 impl App {
-    pub fn new(device_pass: &str) -> Result<App, Box<dyn Error>> {
+    pub async fn new(device_pass: &str) -> Result<App, Box<dyn Error>> {
         let pass_hash = read_password_hash()?;
 
         verify_password(device_pass, &pass_hash.cipher, &pass_hash.nonce)?;
@@ -84,16 +90,23 @@ impl App {
 
         let key_pair = KeyPair::from_sk(private_key);
 
-        let credentials = read_app_data()?;
+        let api = Api::new(key_pair.clone());
+
+        let credentials =  sync_with_api(api, key_pair.clone()).await.or_else(|_| {
+            println!("Failed to sync with API, using local data");
+            read_app_data()
+        })?;
 
         Ok(App {
-            key_pair,
+            key_pair: key_pair.clone(),
             credentials,
-            api: Api::new("http://localhost:3000")
+            api: Api::new(key_pair)
         })
     }
 
-    pub async fn add(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>>{
+    pub async fn add(&mut self, site: String, username: String, password: String) -> Result<(), Box<dyn Error>> {
+        self.verify_credentials_dont_exist(&site, &username).await?;
+
         let public_key = self.key_pair.get_pk();
         let username_enc = self.key_pair.encrypt(&username);
         let password_enc = self.key_pair.encrypt(&password);
@@ -141,7 +154,6 @@ impl App {
 
         let mut result: Vec<Password> = Vec::new();
 
-
         let credentials = self
             .credentials.entry(site.clone())
             .or_insert(HashMap::new());
@@ -163,5 +175,21 @@ impl App {
         };
 
         Ok(result)
+    }
+
+    async fn verify_credentials_dont_exist(&self, site: &str, username: &str) -> Result<(), Box<dyn Error>> {
+        match self.credentials.get(site) {
+            Some(passwords) => {
+                for (username_enc, _) in passwords {
+                    let username_dec = self.key_pair.decrypt(&username_enc);
+                    if username_dec == username {
+                        return Err("Credentials already exist".into());
+                    }
+                }
+            },
+            None => {}
+        };
+
+        Ok(())
     }
 }
