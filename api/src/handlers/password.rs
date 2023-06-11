@@ -4,7 +4,7 @@ use axum::routing::{get, post};
 use crate::AppData;
 use crate::handlers::common::HandlerResponse;
 use crate::handlers::middleware::auth::only_user;
-use crate::model::password::Password;
+use common::model::password::Password;
 
 
 pub struct PasswordController {

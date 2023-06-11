@@ -3,6 +3,7 @@
 * Stores passwords encrypted via a private - public key pair
 */
 use std::string::String;
+use std::error::Error;
 use clap::{Parser, Subcommand};
 
 use cli::{App, auth_device, register};
@@ -53,25 +54,43 @@ enum Commands {
 
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     match args.command {
         Commands::Register {device_pass} => {
-            register(&device_pass).await;
+            match register(&device_pass).await {
+                Ok(seed_phrase) =>
+                    println!("Successfully registered!\nYour seed phrase is: \n{}",
+                             seed_phrase.get_phrase()),
+                Err(e) => println!("Failed to create user: {}", e)
+            }
         },
         Commands::Login { seed_phrase, device_pass } => {
-            auth_device(&seed_phrase, &device_pass);
+            match auth_device(&seed_phrase, &device_pass).await {
+                Ok(_) => println!("Successfully authenticated!"),
+                Err(e) => println!("Failed to authenticate: {}", e)
+            }
         },
         Commands::Add { site, username, password, device_pass } => {
-            App::new(&device_pass).add(site, username, password).await
-                .expect("failed to add password");
+            match App::new(&device_pass).await?.add(site, username, password).await {
+                Ok(_) => println!("Password added successfully"),
+                Err(e) => println!("Failed to add password: {}", e)
+            }
         },
         Commands::Get { site, username, device_pass } => {
-            App::new(&device_pass).get(site, username).await;
+            match App::new(&device_pass).await?.get(site, username).await {
+                Ok(passwords) => {
+                    for credential in passwords {
+                        println!("username: {}\npassword: {}\n", credential.username, credential.password);
+                    }
+                },
+                Err(e) => println!("Failed to get password: {}", e)
+            }
         }
-    }
+    };
 
+    Ok(())
 }
 
 

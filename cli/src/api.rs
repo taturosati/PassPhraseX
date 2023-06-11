@@ -1,20 +1,24 @@
 // Wrapper functions to call api
-
 use std::collections::HashMap;
 use std::error::Error;
-use reqwest::{Client, Url};
+use std::time::SystemTime;
+use reqwest::{Client, Response, StatusCode, Url};
+use common::crypto::asymmetric::KeyPair;
 use common::model::password::Password;
 
 pub struct Api {
 	client: Client,
 	base_url: Url,
+	key_pair: KeyPair
 }
 
 impl Api {
-	pub fn new(base_url: &str) -> Self {
+	pub fn new(key_pair: KeyPair) -> Self {
+		let base_url = "http://localhost:3000"; // TODO: Read from env
 		Self {
 			client: Client::new(),
 			base_url: Url::parse(base_url).unwrap(),
+			key_pair
 		}
 	}
 
@@ -23,10 +27,8 @@ impl Api {
 
 		let mut body = HashMap::new();
 		body.insert("public_key", public_key);
-		match self.client.post(url).json(&body).send().await {
-			Ok(_) => Ok(()),
-			Err(e) => Err(Box::new(e)),
-		}
+		let res = self.client.post(url).json(&body).send().await?;
+		validate_response(res, StatusCode::CREATED).await
 	}
 
 	pub async fn add_password(
@@ -43,26 +45,55 @@ impl Api {
 		body.insert("username", username);
 		body.insert("password", password);
 
-		println!("{}: {:?}", url.to_string(), body);
-		// TODO: Actual auth
 		let res = self.client.post(url)
-			.header("Authorization", "Bearer 1234")
+			.header("Authorization", self.auth_header())
 			.json(&body).send().await?;
-		println!("{:?}", res);
-		Ok(())
+
+		validate_response(res, StatusCode::CREATED).await
 	}
 
-	pub async fn get_passwords(&self, public_key: String, site: String, username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
+	pub async fn get_passwords(&self, public_key: String, site: Option<String>, _username: Option<String>) -> Result<Vec<Password>, Box<dyn Error>> {
 		let url = self.base_url.join(&format!("/users/{}/passwords", public_key))?;
 
-		// TODO: Actual auth
 		let res = self.client.get(url)
-			.header("Authorization", "Bearer 1234")
+			.header("Authorization", self.auth_header())
 			.send().await?;
 
-		let body = res.json::<Vec<Password>>().await.expect("Failed to parse response");
+		match res.status() {
+			StatusCode::OK => (),
+			_ => {
+				return Err(format!("Error from API: {}", res.text().await?).into());
+			}
+		}
 
-		let passwords = body.into_iter().filter(|p| p.site == site).collect();
-		Ok(passwords)
+		let body = res.json::<Vec<Password>>().await?;
+
+		match site {
+			Some(site) => {
+				let passwords = body.into_iter().filter(|p| p.site == site).collect();
+				Ok(passwords)
+			},
+			None => Ok(body)
+		}
 	}
+
+	fn auth_header(&self) -> String {
+		format!("Bearer {}", self.auth_token())
+	}
+
+	fn auth_token(&self) -> String {
+		let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+			.unwrap().as_secs();
+		self.key_pair.sign(&time.to_string()).to_string()
+	}
+}
+
+
+async fn validate_response(res: Response, status_code: StatusCode) -> Result<(), Box<dyn Error>> {
+	if res.status() != status_code {
+		let text = res.text().await?;
+		return Err(format!("Error from API: {}", text).into());
+	}
+
+	Ok(())
 }
