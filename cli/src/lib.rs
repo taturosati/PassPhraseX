@@ -8,7 +8,7 @@ use common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use common::crypto::common::{EncryptedValue};
 use api::Api;
 use std::string::String;
-use common::crypto::symmetric::{encrypt_data, generate_salt, hash_password, verify_password};
+use common::crypto::symmetric::{encrypt_data, generate_salt, hash, verify_password};
 use common::model::password::Password;
 use crate::file::{read_app_data, read_sk, write_app_data, write_sk, write_password_hash, read_password_hash};
 
@@ -25,7 +25,7 @@ pub struct App<> {
 
 pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
     let salt = generate_salt()?;
-    let pass_hash = hash_password(device_pass, &salt)?;
+    let pass_hash = hash(device_pass, &salt)?;
 
     let seed_phrase = SeedPhrase::new();
     let key_pair = KeyPair::new(seed_phrase.clone());
@@ -49,7 +49,7 @@ pub async fn register(device_pass: &str) -> Result<SeedPhrase, Box<dyn Error>> {
 
 pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> Result<(), Box<dyn Error>> {
     let salt = generate_salt()?;
-    let pass_hash = hash_password(device_pass, &salt)?;
+    let pass_hash = hash(device_pass, &salt)?;
 
     let seed_phrase = SeedPhrase::from_str(seed_phrase);
     let key_pair = KeyPair::new(seed_phrase.clone());
@@ -66,7 +66,7 @@ pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> Result<(), Box
 }
 
 async fn sync_with_api(api: Api, key_pair: KeyPair) -> Result<CredentialsMap, Box<dyn Error>> {
-    let passwords = api.get_passwords(key_pair.get_pk(), None, None).await?;
+    let passwords = api.get_passwords(key_pair.get_pk()).await?;
     let mut credentials: CredentialsMap = HashMap::new();
 
     for password in passwords {
@@ -83,16 +83,14 @@ async fn sync_with_api(api: Api, key_pair: KeyPair) -> Result<CredentialsMap, Bo
 impl App {
     pub async fn new(device_pass: &str) -> Result<App, Box<dyn Error>> {
         let pass_hash = read_password_hash()?;
-
         verify_password(device_pass, &pass_hash.cipher, &pass_hash.nonce)?;
 
         let private_key = read_sk(&pass_hash.cipher)?;
-
         let key_pair = KeyPair::from_sk(private_key);
 
         let api = Api::new(key_pair.clone());
 
-        let credentials =  sync_with_api(api, key_pair.clone()).await.or_else(|_| {
+        let credentials = sync_with_api(api, key_pair.clone()).await.or_else(|_| {
             println!("Failed to sync with API, using local data");
             read_app_data()
         })?;
@@ -111,11 +109,18 @@ impl App {
         let username_enc = self.key_pair.encrypt(&username);
         let password_enc = self.key_pair.encrypt(&password);
 
+        let site_username_hash = self.key_pair.hash(&format!("{}{}", site, username))?;
+
+        let password = Password {
+            _id: site_username_hash,
+            site: site.clone(),
+            username: username_enc.clone().into(),
+            password: password_enc.clone().into()
+        };
+
         self.api.add_password(
             public_key,
-            site.clone(),
-            username_enc.clone().into(),
-            password_enc.clone().into()
+            password
         ).await?;
 
         self.credentials.entry(site)
@@ -134,7 +139,11 @@ impl App {
                     let username_dec = self.key_pair.decrypt(&username_enc);
                     let password_dec = self.key_pair.decrypt(&password_enc);
 
+                    let _id = hash(&format!("{}{}", site, username_dec),
+                                   &self.key_pair.get_pk().to_string())?.cipher;
+
                     result.push(Password {
+                        _id,
                         site: site.clone(),
                         username: username_dec,
                         password: password_dec
@@ -146,7 +155,7 @@ impl App {
             None => {}
         };
 
-        let passwords = self.api.get_passwords(self.key_pair.get_pk(), Some(site.clone()), username).await?;
+        let passwords = self.api.get_passwords(self.key_pair.get_pk()).await?;
 
         if passwords.is_empty() {
             return Err("No passwords found".into());
@@ -168,6 +177,7 @@ impl App {
             let username_dec = self.key_pair.decrypt(&username_enc);
 
             result.push(Password {
+                _id: credential._id,
                 site: site.clone(),
                 username: username_dec,
                 password: password_dec

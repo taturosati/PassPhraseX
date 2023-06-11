@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::SystemTime;
 use axum::extract::{TypedHeader, Path};
 use axum::http::{Request, StatusCode};
@@ -11,10 +12,11 @@ use common::crypto::common::EncryptedValue;
 const SECS_TOLERANCE: u64 = 3;
 
 pub async fn only_user<B>(
-	Path(user_id): Path<String>,
+	Path(params): Path<HashMap<String, String>>,
 	request: Request<B>,
 	next: Next<B>
 ) -> Result<Response, StatusCode> {
+	let user_id = params.get("user_id").ok_or(StatusCode::BAD_REQUEST)?;
 	let (mut parts, body) = request.into_parts();
 
 	let auth: TypedHeader<Authorization<Bearer>> = parts.extract()
