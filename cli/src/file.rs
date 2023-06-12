@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -58,39 +57,11 @@ pub fn read_sk(device_pass_hash: &str) -> Result<[u8;32], Box<dyn Error>> {
 }
 
 pub fn write_app_data(data: &CredentialsMap) -> Result<(), Box<dyn Error>> {
-	let mut string_map = HashMap::new();
-
-	for (site, site_data) in data {
-		let mut string_site_data: HashMap<String, String> = HashMap::new();
-		for (username, password) in site_data {
-			string_site_data.insert(
-				username.clone().into(),
-				password.clone().into()
-			);
-		}
-		string_map.insert(site.clone(), string_site_data);
-	}
-
-	write_bytes(DATA_FILE, serde_json::to_string(&string_map)?.as_bytes().to_vec())
+	write_bytes(DATA_FILE, serde_json::to_string(&data)?.as_bytes().to_vec())
 }
 
 pub fn read_app_data() -> Result<CredentialsMap, Box<dyn Error>> {
 	let bytes = read_bytes(DATA_FILE)?;
-	let data: HashMap<String, HashMap<String, String>> = serde_json::from_slice(&bytes)?;
-
-	// Map data into CredentialsMap
-	let mut credentials: CredentialsMap = HashMap::new();
-
-	for (site, site_data) in data {
-		let mut enc_site_data: HashMap<EncryptedValue, EncryptedValue> = HashMap::new();
-		for (username, password) in site_data {
-			enc_site_data.insert(
-				EncryptedValue::from(username),
-				EncryptedValue::from(password)
-			);
-		}
-		credentials.insert(site.clone(), enc_site_data);
-	}
-
-	Ok(credentials)
+	let data: CredentialsMap = serde_json::from_slice(&bytes)?;
+	Ok(data)
 }

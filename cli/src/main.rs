@@ -7,6 +7,7 @@ use std::error::Error;
 use clap::{Parser, Subcommand};
 
 use cli::{App, auth_device, register};
+use common::generator::generate_password;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -50,6 +51,31 @@ enum Commands {
         #[clap(short, long)]
         device_pass: String,
     },
+    /// Modify a password
+    Edit {
+        #[clap(short, long)]
+        site: String,
+        #[clap(short, long)]
+        username: String,
+        #[clap(short, long)]
+        password: String,
+        #[clap(short, long)]
+        device_pass: String,
+    },
+    /// Delete a password
+    Delete {
+        #[clap(short, long)]
+        site: String,
+        #[clap(short, long)]
+        username: String,
+        #[clap(short, long)]
+        device_pass: String,
+    },
+    /// Generate a random password
+    Generate {
+        #[clap(short, long)]
+        length: Option<usize>,
+    }
 }
 
 
@@ -87,6 +113,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 },
                 Err(e) => println!("Failed to get password: {}", e)
             }
+        },
+        Commands::Edit { site, username, password, device_pass } => {
+            match App::new(&device_pass).await?.edit(site, username, password).await {
+                Ok(_) => println!("Password edited successfully"),
+                Err(e) => println!("Failed to edit password: {}", e)
+            }
+        },
+        Commands::Delete { site, username, device_pass } => {
+            match App::new(&device_pass).await?.delete(site, username).await {
+                Ok(_) => println!("Password deleted successfully"),
+                Err(e) => println!("Failed to delete password: {}", e)
+            }
+        },
+        Commands::Generate {length} => {
+            println!("{}", generate_password(length.unwrap_or(16)));
         }
     };
 
