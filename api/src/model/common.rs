@@ -1,3 +1,4 @@
+use std::env;
 use mongodb::{Client, Collection};
 use mongodb::options::ClientOptions;
 use mongodb::error::Result;
@@ -8,8 +9,9 @@ pub struct DatabaseConfig {
 
 impl DatabaseConfig {
     pub fn new() -> Self {
-        // TODO: Read from env
-        let uri = "mongodb://localhost:27017".to_string();
+        let uri = env::var("MONGODB_URI")
+            .unwrap_or("mongodb://localhost:27017".to_string());
+
         Self {
             uri
         }
