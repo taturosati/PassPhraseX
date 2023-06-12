@@ -26,6 +26,8 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
 
+    println!("Connected to database");
+
     let app = Router::new()
         .merge(user_controller.router)
         .with_state(AppData {
