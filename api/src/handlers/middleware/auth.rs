@@ -6,8 +6,8 @@ use axum::middleware::Next;
 use axum::response::Response;
 use axum::headers::authorization::{Authorization, Bearer};
 use axum::RequestPartsExt;
-use common::crypto::asymmetric::{public_key_from_base64, verify};
-use common::crypto::common::EncryptedValue;
+use passphrasex_common::crypto::asymmetric::{public_key_from_base64, verify};
+use passphrasex_common::crypto::common::EncryptedValue;
 
 const SECS_TOLERANCE: u64 = 3;
 

@@ -1,10 +1,10 @@
 use axum::{extract::{Path, State}, http::StatusCode, Json, middleware, Router};
 use axum::body::Body;
 use axum::routing::{delete, get, post, put};
+use passphrasex_common::model::password::Password;
 use crate::AppData;
 use crate::handlers::common::HandlerResponse;
 use crate::handlers::middleware::auth::only_user;
-use common::model::password::Password;
 
 pub struct PasswordController {
     pub router: Router<AppData, Body>

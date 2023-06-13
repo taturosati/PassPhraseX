@@ -1,8 +1,8 @@
 use mongodb::{Client, Collection};
 use mongodb::bson::doc;
 use mongodb::options::FindOneAndUpdateOptions;
-use common::model::user::User;
-use common::model::password::Password;
+use passphrasex_common::model::user::User;
+use passphrasex_common::model::password::Password;
 use crate::model::common::GetCollection;
 
 #[derive(Clone)]

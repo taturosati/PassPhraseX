@@ -2,8 +2,8 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
 use app_dirs2::{app_dir, AppDataType};
-use common::crypto::common::EncryptedValue;
-use common::crypto::symmetric::{decrypt_data, encrypt_data};
+use passphrasex_common::crypto::common::EncryptedValue;
+use passphrasex_common::crypto::symmetric::{decrypt_data, encrypt_data};
 use crate::{APP_INFO, CredentialsMap};
 
 const DATA_DIR: &str = "data";
