@@ -1,0 +1,50 @@
+version: "3.8"
+
+networks:
+  passphrasex:
+    driver: bridge
+
+services:
+    api:
+        build:
+            context: ..
+            dockerfile: ./api/Dockerfile
+        image: api
+        container_name: passphrasex-api
+        restart: always
+        expose:
+            - "3000"
+        networks:
+            - passphrasex
+        depends_on:
+            - db
+        environment:
+            - MONGODB_URI=mongodb://db:27017/api
+    db:
+        image: mongo
+        container_name: passphrasex-db
+        restart: always
+        expose:
+            - "27017"
+        networks:
+            - passphrasex
+            
+    nginx:
+        build:
+            context: ./nginx
+            dockerfile: ./Dockerfile
+        container_name: passphrasex-nginx
+        restart: always
+        ports:
+            - "80:80"
+            - "443:443"
+        networks:
+            - passphrasex
+        environment:
+            - DOMAIN=api.passphrasex.srosati.xyz
+            - EMAIL=srosati@itba.edu.ar
+        depends_on:
+            - api
+
+
+
