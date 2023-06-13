@@ -157,20 +157,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "aes",
- "base64 0.21.0",
- "bip32",
- "crypto_box",
- "rand",
- "rand_core 0.6.4",
- "rust-argon2",
- "serde",
-]
-
-[[package]]
 name = "const-oid"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,6 +395,20 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
+
+[[package]]
+name = "passphrasex_common"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "base64 0.21.0",
+ "bip32",
+ "crypto_box",
+ "rand",
+ "rand_core 0.6.4",
+ "rust-argon2",
+ "serde",
+]
 
 [[package]]
 name = "pbkdf2"

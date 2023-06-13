@@ -8,10 +8,10 @@ use std::string::String;
 use app_dirs2::AppInfo;
 
 use api::Api;
-use common::crypto::asymmetric::{KeyPair, SeedPhrase};
-use common::crypto::common::{EncryptedValue};
-use common::crypto::symmetric::{encrypt_data, generate_salt, hash, verify_password};
-use common::model::password::Password;
+use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
+use passphrasex_common::crypto::common::{EncryptedValue};
+use passphrasex_common::crypto::symmetric::{encrypt_data, generate_salt, hash, verify_password};
+use passphrasex_common::model::password::Password;
 use crate::file::{read_app_data, read_sk, write_app_data, write_sk, write_password_hash, read_password_hash};
 
 pub const APP_INFO: AppInfo = AppInfo{name: "PassPhraseX", author: "Santos Matías Rosati"};

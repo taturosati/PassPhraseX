@@ -2,12 +2,12 @@
 * Password Manager
 * Stores passwords encrypted via a private - public key pair
 */
-use std::string::String;
-use std::error::Error;
 use clap::{Parser, Subcommand};
+use std::error::Error;
+use std::string::String;
 
-use cli::{App, auth_device, register};
-use common::generator::generate_password;
+use passphrasex_common::generator::generate_password;
+use passphrasex::{auth_device, register, App};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -75,49 +75,55 @@ enum Commands {
     Generate {
         #[clap(short, long)]
         length: Option<usize>,
-    }
+    },
 }
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     match args.command {
-        Commands::Register {device_pass} => {
-            match register(&device_pass).await {
-                Ok(seed_phrase) =>
-                    println!("Successfully registered!\nYour seed phrase is: \n{}",
-                             seed_phrase.get_phrase()),
-                Err(e) => println!("Failed to create user: {}", e)
-            }
+        Commands::Register { device_pass } => match register(&device_pass).await {
+            Ok(seed_phrase) => println!(
+                "Successfully registered!\nYour seed phrase is: \n{}",
+                seed_phrase.get_phrase()
+            ),
+            Err(e) => println!("Failed to create user: {}", e),
         },
         Commands::Login { seed_phrase, device_pass } => {
             match auth_device(&seed_phrase, &device_pass).await {
                 Ok(_) => println!("Successfully authenticated!"),
-                Err(e) => println!("Failed to authenticate: {}", e)
+                Err(e) => println!("Failed to authenticate: {}", e),
             }
         },
-        Commands::Add { site, username, password, device_pass } => {
+        Commands::Add { site, username, password, device_pass} => {
             match App::new(&device_pass).await?.add(site, username, password).await {
                 Ok(_) => println!("Password added successfully"),
-                Err(e) => println!("Failed to add password: {}", e)
+                Err(e) => println!("Failed to add password: {}", e),
             }
-        },
-        Commands::Get { site, username, device_pass } => {
+        }
+        Commands::Get { site, username, device_pass, } => {
             match App::new(&device_pass).await?.get(site, username).await {
                 Ok(passwords) => {
                     for credential in passwords {
-                        println!("username: {}\npassword: {}\n", credential.username, credential.password);
+                        println!(
+                            "username: {}\npassword: {}\n",
+                            credential.username, credential.password
+                        );
                     }
-                },
-                Err(e) => println!("Failed to get password: {}", e)
+                }
+                Err(e) => println!("Failed to get password: {}", e),
             }
         },
-        Commands::Edit { site, username, password, device_pass } => {
+        Commands::Edit {
+            site,
+            username,
+            password,
+            device_pass,
+        } => {
             match App::new(&device_pass).await?.edit(site, username, password).await {
                 Ok(_) => println!("Password edited successfully"),
-                Err(e) => println!("Failed to edit password: {}", e)
+                Err(e) => println!("Failed to edit password: {}", e),
             }
         },
         Commands::Delete { site, username, device_pass } => {
@@ -133,7 +139,3 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
-
-
-
