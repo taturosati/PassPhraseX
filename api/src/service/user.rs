@@ -1,5 +1,5 @@
 use mongodb::{Client, Collection};
-use common::model::user::User;
+use passphrasex_common::model::user::User;
 use crate::model::common::GetCollection;
 
 #[derive(Clone)]
