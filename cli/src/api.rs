@@ -1,10 +1,11 @@
 // Wrapper functions to call api
 use std::collections::HashMap;
+use std::env;
 use std::error::Error;
 use std::time::SystemTime;
 use reqwest::{Client, Response, StatusCode, Url};
-use common::crypto::asymmetric::KeyPair;
-use common::model::password::Password;
+use passphrasex_common::crypto::asymmetric::KeyPair;
+use passphrasex_common::model::password::Password;
 
 pub struct Api {
 	client: Client,
@@ -14,10 +15,12 @@ pub struct Api {
 
 impl Api {
 	pub fn new(key_pair: KeyPair) -> Self {
-		let base_url = "http://localhost:3000"; // TODO: Read from env
+		let base_url = env::var("API_URI")
+            .unwrap_or("https://api.passphrasex.srosati.xyz".to_string());
+
 		Self {
 			client: Client::new(),
-			base_url: Url::parse(base_url).unwrap(),
+			base_url: Url::parse(&base_url).unwrap(),
 			key_pair
 		}
 	}
