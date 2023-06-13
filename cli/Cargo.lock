@@ -296,19 +296,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a2dd5a6fe8c6e3502f568a6353e5273bbb15193ad9a89e457b9970798efbea1"
 
 [[package]]
-name = "cli"
-version = "0.1.0"
-dependencies = [
- "app_dirs2",
- "clap",
- "common",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -322,20 +309,6 @@ checksum = "35ed6e9d84f0b51a7f52daf1c7d71dd136fd7a3f41a8462b8cdb8c78d920fad4"
 dependencies = [
  "bytes",
  "memchr",
-]
-
-[[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "aes",
- "base64 0.21.0",
- "bip32",
- "crypto_box",
- "rand",
- "rand_core 0.6.4",
- "rust-argon2",
- "serde",
 ]
 
 [[package]]
@@ -1044,6 +1017,33 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "passphrasex"
+version = "0.1.0"
+dependencies = [
+ "app_dirs2",
+ "clap",
+ "passphrasex_common",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "passphrasex_common"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "base64 0.21.0",
+ "bip32",
+ "crypto_box",
+ "rand",
+ "rand_core 0.6.4",
+ "rust-argon2",
+ "serde",
 ]
 
 [[package]]

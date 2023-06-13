@@ -48,8 +48,8 @@ name = "api"
 version = "0.1.0"
 dependencies = [
  "axum",
- "common",
  "mongodb",
+ "passphrasex_common",
  "serde",
  "serde_json",
  "tokio",
@@ -322,20 +322,6 @@ dependencies = [
  "crypto-common",
  "inout",
  "zeroize",
-]
-
-[[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "aes",
- "base64 0.21.0",
- "bip32",
- "crypto_box",
- "rand",
- "rand_core 0.6.4",
- "rust-argon2",
- "serde",
 ]
 
 [[package]]
@@ -1160,6 +1146,20 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-sys 0.45.0",
+]
+
+[[package]]
+name = "passphrasex_common"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "base64 0.21.0",
+ "bip32",
+ "crypto_box",
+ "rand",
+ "rand_core 0.6.4",
+ "rust-argon2",
+ "serde",
 ]
 
 [[package]]
