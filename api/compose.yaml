@@ -1,0 +1,47 @@
+version: "3.8"
+
+networks:
+  passphrasex:
+    driver: bridge
+
+volumes:
+    db_data: {}
+
+services:
+    api:
+        build:
+            context: ..
+            dockerfile: ./api/Dockerfile
+        image: api
+        container_name: passphrasex-api
+        expose:
+            - "3000"
+        networks:
+            - passphrasex
+        depends_on:
+            - db
+        environment:
+            - MONGODB_URI=mongodb://db:27017/api
+    db:
+        image: mongo
+        container_name: passphrasex-db
+        expose:
+            - "27017"
+        networks:
+            - passphrasex
+        volumes:
+            - db_data:/data/db
+    nginx:
+        image: nginx:alpine
+        container_name: passphrasex-nginx
+        ports:
+            - "80:80"
+            - "443:443"
+        networks:
+            - passphrasex
+        volumes:
+            - /private/etc/ssl/localhost:/etc/ssl/localhost:ro
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+        depends_on:
+            - api
+
