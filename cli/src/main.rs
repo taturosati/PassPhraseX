@@ -141,6 +141,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Ok(_) => println!("Password edited successfully"),
                 Err(e) => println!("Failed to edit password: {}", e),
             }
+        },
+        Commands::Edit { site, username, password, device_pass } => {
+            match App::new(&device_pass).await?.edit(site, username, password).await {
+                Ok(_) => println!("Password edited successfully"),
+                Err(e) => println!("Failed to edit password: {}", e)
+            }
+        },
+        Commands::Delete { site, username, device_pass } => {
+            match App::new(&device_pass).await?.delete(site, username).await {
+                Ok(_) => println!("Password deleted successfully"),
+                Err(e) => println!("Failed to delete password: {}", e)
+            }
+        },
+        Commands::Generate {length} => {
+            println!("{}", generate_password(length.unwrap_or(16)));
         }
         Commands::Delete {
             site,
