@@ -4,11 +4,6 @@ networks:
   passphrasex:
     driver: bridge
 
-volumes:
-    db_data: {}
-    certificates: {}
-    api_target: {}
-
 services:
     api:
         build:
@@ -16,7 +11,7 @@ services:
             dockerfile: ./api/Dockerfile
         image: api
         container_name: passphrasex-api
-        hostname: api
+        restart: always
         expose:
             - "3000"
         networks:
@@ -25,31 +20,28 @@ services:
             - db
         environment:
             - MONGODB_URI=mongodb://db:27017/api
-        volumes:
-            - api_target:/usr/src/api/target
     db:
         image: mongo
         container_name: passphrasex-db
+        restart: always
         expose:
             - "27017"
         networks:
             - passphrasex
-        volumes:
-            - db_data:/data/db
+            
     nginx:
         build:
             context: ./nginx
             dockerfile: ./Dockerfile
         container_name: passphrasex-nginx
+        restart: always
         ports:
             - "80:80"
             - "443:443"
         networks:
             - passphrasex
-        volumes:
-            - certificates:/etc/letsencrypt/live/passphrasex.srosati.xyz
         environment:
-            - DOMAIN=passphrasex.srosati.xyz
+            - DOMAIN=api.passphrasex.srosati.xyz
             - EMAIL=srosati@itba.edu.ar
         depends_on:
             - api
