@@ -90,42 +90,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ),
             Err(e) => println!("Failed to create user: {}", e),
         },
-        Commands::Login {
-            seed_phrase,
-            device_pass,
-        } => match auth_device(&seed_phrase, &device_pass).await {
-            Ok(_) => println!("Successfully authenticated!"),
-            Err(e) => println!("Failed to authenticate: {}", e),
+        Commands::Login { seed_phrase, device_pass } => {
+            match auth_device(&seed_phrase, &device_pass).await {
+                Ok(_) => println!("Successfully authenticated!"),
+                Err(e) => println!("Failed to authenticate: {}", e),
+            }
         },
-        Commands::Add {
-            site,
-            username,
-            password,
-            device_pass,
-        } => {
-            match App::new(&device_pass)
-                .await?
-                .add(site, username, password)
-                .await
-            {
+        Commands::Add { site, username, password, device_pass} => {
+            match App::new(&device_pass).await?.add(site, username, password).await {
                 Ok(_) => println!("Password added successfully"),
                 Err(e) => println!("Failed to add password: {}", e),
             }
         }
-        Commands::Get {
-            site,
-            username,
-            device_pass,
-        } => match App::new(&device_pass).await?.get(site, username).await {
-            Ok(passwords) => {
-                for credential in passwords {
-                    println!(
-                        "username: {}\npassword: {}\n",
-                        credential.username, credential.password
-                    );
+        Commands::Get { site, username, device_pass, } => {
+            match App::new(&device_pass).await?.get(site, username).await {
+                Ok(passwords) => {
+                    for credential in passwords {
+                        println!(
+                            "username: {}\npassword: {}\n",
+                            credential.username, credential.password
+                        );
+                    }
                 }
+                Err(e) => println!("Failed to get password: {}", e),
             }
-            Err(e) => println!("Failed to get password: {}", e),
         },
         Commands::Edit {
             site,
@@ -133,24 +121,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
             password,
             device_pass,
         } => {
-            match App::new(&device_pass)
-                .await?
-                .edit(site, username, password)
-                .await
-            {
+            match App::new(&device_pass).await?.edit(site, username, password).await {
                 Ok(_) => println!("Password edited successfully"),
                 Err(e) => println!("Failed to edit password: {}", e),
             }
-        }
-        Commands::Delete {
-            site,
-            username,
-            device_pass,
-        } => match App::new(&device_pass).await?.delete(site, username).await {
-            Ok(_) => println!("Password deleted successfully"),
-            Err(e) => println!("Failed to delete password: {}", e),
         },
-        Commands::Generate { length } => {
+        Commands::Delete { site, username, device_pass } => {
+            match App::new(&device_pass).await?.delete(site, username).await {
+                Ok(_) => println!("Password deleted successfully"),
+                Err(e) => println!("Failed to delete password: {}", e)
+            }
+        },
+        Commands::Generate {length} => {
             println!("{}", generate_password(length.unwrap_or(16)));
         }
     };
