@@ -105,13 +105,11 @@ impl PasswordService {
 #[cfg(test)]
 mod tests {
 	use std::sync::Mutex;
-	use super::PasswordService;
 
 	use mongodb::bson::doc;
 	use mongodb::{Client, Collection};
 	use passphrasex_common::model::password::Password;
 	use passphrasex_common::model::user::User;
-	use crate::error::common::ApiError;
 	use crate::model::common::{DatabaseConfig, GetCollection};
 
 	const USER_ID: &str = "user_id";
@@ -150,58 +148,69 @@ mod tests {
 		client
 	}
 
-	#[tokio::test]
-	async fn modify_password() -> anyhow::Result<()> {
-		let client = setup().await;
-		let collection: Collection<User> = client.get_collection("users");
-		let service = PasswordService::new(&client);
+	mod modify_password {
+		use mongodb::bson::doc;
+		use mongodb::Collection;
+		use passphrasex_common::model::user::User;
+		use crate::error::common::ApiError;
+		use crate::model::common::GetCollection;
+		use crate::service::password::PasswordService;
+		use super::{USER_ID, PASSWORD_ID};
+		use super::setup;
 
-		let result = service.modify_password(
-			USER_ID.to_string(),
-			PASSWORD_ID.to_string(),
-			"new_password".to_string()
-		).await;
+		#[tokio::test]
+		async fn modify_password() -> anyhow::Result<()> {
+			let client = setup().await;
+			let collection: Collection<User> = client.get_collection("users");
+			let service = PasswordService::new(&client);
 
-		assert!(result.is_ok());
+			let result = service.modify_password(
+				USER_ID.to_string(),
+				PASSWORD_ID.to_string(),
+				"new_password".to_string()
+			).await;
 
-		let user: User = collection.find_one(doc!{"_id": USER_ID.to_string()}, None).await?
-			.ok_or(anyhow::anyhow!("User not found"))?;
+			assert!(result.is_ok());
 
-		assert_eq!(user.passwords.len(), 1);
-		assert_eq!(user.passwords[0].password, "new_password".to_string());
-		Ok(())
-	}
+			let user: User = collection.find_one(doc! {"_id": USER_ID.to_string()}, None).await?
+				.ok_or(anyhow::anyhow!("User not found"))?;
 
-	#[tokio::test]
-	async fn modify_password_missing_user() -> anyhow::Result<()> {
-		let client = setup().await;
-		let service = PasswordService::new(&client);
+			assert_eq!(user.passwords.len(), 1);
+			assert_eq!(user.passwords[0].password, "new_password".to_string());
+			Ok(())
+		}
 
-		let result = service.modify_password(
-			"wrong_id".to_string(),
-			PASSWORD_ID.to_string(),
-			"new_password".to_string()
-		).await;
+		#[tokio::test]
+		async fn modify_password_missing_user() -> anyhow::Result<()> {
+			let client = setup().await;
+			let service = PasswordService::new(&client);
 
-		assert!(result.is_err());
-		assert!(matches!(result, Err(ApiError::UserNotFound(_))));
-		Ok(())
-	}
+			let result = service.modify_password(
+				"wrong_id".to_string(),
+				PASSWORD_ID.to_string(),
+				"new_password".to_string()
+			).await;
 
-	#[tokio::test]
-	async fn modify_password_missing_password() -> anyhow::Result<()> {
-		let client = setup().await;
-		let service = PasswordService::new(&client);
+			assert!(result.is_err());
+			assert!(matches!(result, Err(ApiError::UserNotFound(_))));
+			Ok(())
+		}
 
-		let result = service.modify_password(
-			USER_ID.to_string(),
-			"wrong_id".to_string(),
-			"new_password".to_string()
-		).await;
+		#[tokio::test]
+		async fn modify_password_missing_password() -> anyhow::Result<()> {
+			let client = setup().await;
+			let service = PasswordService::new(&client);
 
-		assert!(result.is_err());
-		assert!(matches!(result, Err(ApiError::PasswordNotFound(_))));
-		Ok(())
+			let result = service.modify_password(
+				USER_ID.to_string(),
+				"wrong_id".to_string(),
+				"new_password".to_string()
+			).await;
+
+			assert!(result.is_err());
+			assert!(matches!(result, Err(ApiError::PasswordNotFound(_))));
+			Ok(())
+		}
 	}
 }
 
