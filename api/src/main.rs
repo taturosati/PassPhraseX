@@ -1,6 +1,7 @@
 mod model;
 mod handlers;
 mod service;
+mod error;
 
 use model::common::DatabaseConfig;
 

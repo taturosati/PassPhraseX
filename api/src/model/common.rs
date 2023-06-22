@@ -1,6 +1,6 @@
 use std::env;
 use mongodb::{Client, Collection};
-use mongodb::options::ClientOptions;
+use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
 use mongodb::error::Result;
 
 pub struct DatabaseConfig {
@@ -18,7 +18,9 @@ impl DatabaseConfig {
     }
 
     pub async fn into_client(self) -> Result<Client> {
-        let client_options = ClientOptions::parse(self.uri).await?;
+        let mut client_options = ClientOptions::parse(self.uri).await?;
+        let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
+        client_options.server_api = Some(server_api);
         Client::with_options(client_options)
     }
 }

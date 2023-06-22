@@ -1,6 +1,7 @@
 use axum::{http::StatusCode, response::{IntoResponse, Response}};
 use serde::Serialize;
 use serde_json;
+use crate::error::common::ApiError;
 
 pub struct HandlerResponse {
     pub status: StatusCode,
@@ -18,6 +19,17 @@ impl HandlerResponse {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 body: Some(err.to_string()),
             }
+        }
+    }
+}
+
+impl From<ApiError> for HandlerResponse {
+    fn from(value: ApiError) -> Self {
+        match value {
+            ApiError::UserNotFound(_) => Self::new(StatusCode::NOT_FOUND, value),
+            ApiError::PasswordNotFound(_) => Self::new(StatusCode::NOT_FOUND, value),
+            ApiError::UserAlreadyExists(_) => Self::new(StatusCode::BAD_REQUEST, value),
+            _ => Self::new(StatusCode::INTERNAL_SERVER_ERROR, value)
         }
     }
 }

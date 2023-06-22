@@ -30,10 +30,9 @@ impl PasswordController {
         Path(user_id): Path<String>,
         Json(payload): Json<Password>
     ) -> HandlerResponse {
-        // TODO: Multiple error types
         match state.password_service.add_password(user_id, payload).await {
             Ok(password) => HandlerResponse::new(StatusCode::CREATED, password),
-            Err(err) => HandlerResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err)
+            Err(err) => HandlerResponse::from(err)
         }
     }
 
@@ -41,10 +40,9 @@ impl PasswordController {
         State(state): State<AppData>,
         Path(user_id): Path<String>
     ) -> HandlerResponse {
-        // TODO: Multiple error types
         match state.password_service.list_passwords(user_id).await {
             Ok(passwords) => HandlerResponse::new(StatusCode::OK, passwords),
-            Err(err) => HandlerResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err)
+            Err(err) => HandlerResponse::from(err)
         }
     }
 
@@ -52,10 +50,9 @@ impl PasswordController {
         State(state): State<AppData>,
         Path((user_id, password_id)): Path<(String, String)>
     ) -> HandlerResponse {
-        // TODO: Multiple error types
         match state.password_service.delete_password(user_id, password_id).await {
             Ok(_) => HandlerResponse::new(StatusCode::NO_CONTENT, ()),
-            Err(err) => HandlerResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err)
+            Err(err) => HandlerResponse::from(err)
         }
     }
 
@@ -66,7 +63,7 @@ impl PasswordController {
     ) -> HandlerResponse {
         match state.password_service.modify_password(user_id, password_id, payload).await {
             Ok(_) => HandlerResponse::new(StatusCode::NO_CONTENT, ()),
-            Err(err) => HandlerResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err)
+            Err(err) => HandlerResponse::from(err)
         }
     }
 }
