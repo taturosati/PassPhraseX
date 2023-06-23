@@ -1,8 +1,8 @@
 on:
-    push:
-        branches: [ main, main_api ]
-    pull_request:
-        branches: [ main, main_api ]
+  push:
+    branches: [ main, main_api ]
+  pull_request:
+    branches: [ main, main_api ]
 
 name: API
 
@@ -29,10 +29,19 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Run cargo check
-        working-directory: api
-        run: cargo check --all
+      - name: Install clippy & rustfmt
+        run: |
+          rustup component add clippy
+          rustup component add rustfmt
 
-      - name: Run cargo test
+      - name: Format & Lint
         working-directory: api
-        run: cargo test --all
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --all -- -D warnings
+
+      - name: Run cargo check & test
+        working-directory: api
+        run: |
+          cargo check --all
+          cargo test --all
