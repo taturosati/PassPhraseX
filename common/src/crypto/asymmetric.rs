@@ -27,16 +27,13 @@ impl SeedPhrase {
 
 impl Default for SeedPhrase {
     fn default() -> Self {
-         Self::new()
+        Self::new()
     }
 }
 
-
 impl From<String> for SeedPhrase {
     fn from(value: String) -> SeedPhrase {
-        SeedPhrase {
-            phrase: value,
-        }
+        SeedPhrase { phrase: value }
     }
 }
 
