@@ -5,6 +5,5 @@ pub struct Password {
     pub _id: String,
     pub site: String,
     pub username: String,
-    pub password: String
+    pub password: String,
 }
-

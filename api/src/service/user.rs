@@ -23,7 +23,7 @@ impl UserService {
             Err(err) => match err.kind.as_ref() {
                 ErrorKind::Write(WriteError(error)) => match error.code {
                     11000 => Err(ApiError::UserAlreadyExists(user._id)),
-                    _ => Err(ApiError::InternalServerError(err.to_string()))
+                    _ => Err(ApiError::InternalServerError(err.to_string())),
                 },
                 _ => Err(ApiError::InternalServerError(err.to_string())),
             },

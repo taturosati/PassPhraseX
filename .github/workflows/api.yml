@@ -8,7 +8,7 @@ name: API
 
 jobs:
   test:
-    name: Check & Test
+    name: Lint & Test API
     runs-on: ubuntu-latest
     steps:
       - name: Install tools
@@ -34,11 +34,13 @@ jobs:
           rustup component add clippy
           rustup component add rustfmt
 
-      - name: Format & Lint
+      - name: Format
         working-directory: api
-        run: |
-          cargo fmt --all -- --check
-          cargo clippy --all -- -D warnings
+        run: cargo fmt --all --check
+
+      - name: Lint
+        working-directory: api
+        run: cargo clippy --all -- -D warnings
 
       - name: Run cargo check & test
         working-directory: api

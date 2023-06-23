@@ -179,6 +179,47 @@ mod tests {
         client
     }
 
+    mod add_password {
+        use super::setup;
+        use crate::model::common::GetCollection;
+        use crate::service::password::PasswordService;
+        use mongodb::bson::doc;
+        use mongodb::Collection;
+        use passphrasex_common::model::password::Password;
+        use passphrasex_common::model::user::User;
+
+        #[tokio::test]
+        async fn add_password() {
+            let client = setup().await;
+            let collection: Collection<User> = client.get_collection("users");
+            let service = PasswordService::new(&client);
+
+            const NEW_PASSWORD_ID: &str = "new_password_id";
+            let result = service
+                .add_password(
+                    "user_id".to_string(),
+                    Password {
+                        _id: NEW_PASSWORD_ID.to_string(),
+                        site: "new_site".to_string(),
+                        username: "new_username".to_string(),
+                        password: "new_password".to_string(),
+                    },
+                )
+                .await;
+
+            assert!(result.is_ok());
+
+            let user: User = collection
+                .find_one(doc! {"_id": "user_id"}, None)
+                .await
+                .expect("Failed to find user")
+                .expect("User not found");
+
+            assert_eq!(user.passwords.len(), 2);
+            assert_eq!(user.passwords[1]._id, NEW_PASSWORD_ID);
+        }
+    }
+
     mod modify_password {
         use super::setup;
         use super::{PASSWORD_ID, USER_ID};
