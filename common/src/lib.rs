@@ -1,6 +1,6 @@
-extern crate argon2;
 extern crate aes;
+extern crate argon2;
 
-pub mod model;
 pub mod crypto;
 pub mod generator;
+pub mod model;

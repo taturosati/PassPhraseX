@@ -1,24 +1,23 @@
-use std::env;
-use mongodb::{Client, Collection};
-use mongodb::options::ClientOptions;
 use mongodb::error::Result;
+use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
+use mongodb::{Client, Collection};
+use std::env;
 
 pub struct DatabaseConfig {
-    pub uri: String
+    pub uri: String,
 }
 
 impl DatabaseConfig {
     pub fn new() -> Self {
-        let uri = env::var("MONGODB_URI")
-            .unwrap_or("mongodb://localhost:27017".to_string());
+        let uri = env::var("MONGODB_URI").unwrap_or("mongodb://localhost:27017".to_string());
 
-        Self {
-            uri
-        }
+        Self { uri }
     }
 
     pub async fn into_client(self) -> Result<Client> {
-        let client_options = ClientOptions::parse(self.uri).await?;
+        let mut client_options = ClientOptions::parse(self.uri).await?;
+        let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
+        client_options.server_api = Some(server_api);
         Client::with_options(client_options)
     }
 }
