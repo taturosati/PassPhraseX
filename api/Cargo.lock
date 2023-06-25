@@ -55,6 +55,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "futures-util",
  "mongodb",
  "passphrasex_common",
  "serde",

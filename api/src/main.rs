@@ -29,11 +29,13 @@ async fn main() {
 
     println!("Connected to database");
 
+    let user_service = UserService::new(&client);
+
     let app = Router::new()
         .merge(user_controller.router)
         .with_state(AppData {
-            user_service: UserService::new(&client),
-            password_service: PasswordService::new(&client),
+            user_service: user_service.clone(),
+            password_service: PasswordService::new(&client, user_service),
         });
 
     // run it with hyper on localhost:3000

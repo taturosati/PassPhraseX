@@ -1,5 +1,6 @@
 use crate::error::common::ApiError;
 use crate::model::common::GetCollection;
+use mongodb::bson::doc;
 use mongodb::error::ErrorKind;
 use mongodb::error::WriteFailure::WriteError;
 use mongodb::{Client, Collection};
@@ -27,6 +28,16 @@ impl UserService {
                 },
                 _ => Err(ApiError::InternalServerError(err.to_string())),
             },
+        }
+    }
+
+    pub async fn get_user(&self, user_id: String) -> Result<User, ApiError> {
+        let collection = &self.user_collection;
+        let filter = doc! {"_id": user_id.clone()};
+        match collection.find_one(filter, None).await {
+            Ok(Some(user)) => Ok(user),
+            Ok(None) => Err(ApiError::UserNotFound(user_id)),
+            Err(err) => Err(ApiError::InternalServerError(err.to_string())),
         }
     }
 }

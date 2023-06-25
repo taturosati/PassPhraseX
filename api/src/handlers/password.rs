@@ -34,10 +34,9 @@ impl PasswordController {
 
     pub async fn add_password(
         State(state): State<AppData>,
-        Path(user_id): Path<String>,
         Json(payload): Json<Password>,
     ) -> HandlerResponse {
-        match state.password_service.add_password(user_id, payload).await {
+        match state.password_service.add_password(payload).await {
             Ok(password) => HandlerResponse::new(StatusCode::CREATED, password),
             Err(err) => HandlerResponse::from(err),
         }
@@ -47,7 +46,8 @@ impl PasswordController {
         State(state): State<AppData>,
         Path(user_id): Path<String>,
     ) -> HandlerResponse {
-        match state.password_service.list_passwords(user_id).await {
+        let service = state.password_service;
+        match service.list_passwords(user_id).await {
             Ok(passwords) => HandlerResponse::new(StatusCode::OK, passwords),
             Err(err) => HandlerResponse::from(err),
         }
@@ -57,11 +57,8 @@ impl PasswordController {
         State(state): State<AppData>,
         Path((user_id, password_id)): Path<(String, String)>,
     ) -> HandlerResponse {
-        match state
-            .password_service
-            .delete_password(user_id, password_id)
-            .await
-        {
+        let service = state.password_service;
+        match service.delete_password(user_id, password_id).await {
             Ok(_) => HandlerResponse::new(StatusCode::NO_CONTENT, ()),
             Err(err) => HandlerResponse::from(err),
         }
@@ -72,11 +69,8 @@ impl PasswordController {
         Path((user_id, password_id)): Path<(String, String)>,
         payload: String,
     ) -> HandlerResponse {
-        match state
-            .password_service
-            .modify_password(user_id, password_id, payload)
-            .await
-        {
+        let service = state.password_service;
+        match service.modify_password(user_id, password_id, payload).await {
             Ok(_) => HandlerResponse::new(StatusCode::NO_CONTENT, ()),
             Err(err) => HandlerResponse::from(err),
         }

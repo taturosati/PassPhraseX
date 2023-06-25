@@ -1,63 +1,50 @@
 use crate::error::common::ApiError;
 use crate::model::common::GetCollection;
+use crate::service::user::UserService;
+use futures_util::TryStreamExt;
 use mongodb::bson::doc;
-use mongodb::options::UpdateOptions;
+use mongodb::error::ErrorKind;
+use mongodb::error::WriteFailure::WriteError;
 use mongodb::{Client, Collection};
 use passphrasex_common::model::password::Password;
-use passphrasex_common::model::user::User;
 
 #[derive(Clone)]
 pub struct PasswordService {
-    user_collection: Collection<User>,
+    user_service: UserService,
+    password_collection: Collection<Password>,
 }
 
 impl PasswordService {
-    pub fn new(client: &Client) -> Self {
+    pub fn new(client: &Client, user_service: UserService) -> Self {
         Self {
-            user_collection: client.get_collection("users"),
+            user_service,
+            password_collection: client.get_collection("passwords"),
         }
     }
 
     pub async fn list_passwords(&self, user_id: String) -> Result<Vec<Password>, ApiError> {
-        let filter = doc! {"_id": user_id.clone()};
+        let filter = doc! {"user_id": user_id.clone()};
 
-        match self.user_collection.find_one(filter, None).await {
-            Ok(result) => match result {
-                Some(user) => Ok(user.passwords),
-                None => Err(ApiError::UserNotFound(user_id)),
-            },
+        match self.password_collection.find(filter, None).await {
+            Ok(result) => result.try_collect().await.map_err(|err| {
+                ApiError::InternalServerError(format!("Error while collecting passwords: {}", err))
+            }),
             Err(err) => Err(ApiError::InternalServerError(err.to_string())),
         }
     }
 
-    pub async fn add_password(
-        &self,
-        user_id: String,
-        password: Password,
-    ) -> Result<Password, ApiError> {
-        let filter = doc! {"_id": user_id.clone()};
-
-        let update = doc! {
-            "$addToSet": {
-                "passwords": {
-                    "_id": password._id.clone(),
-                    "site": password.site.clone(),
-                    "username": password.username.clone(),
-                    "password": password.password.clone()
-                }
-            }
-        };
-
-        match self
-            .user_collection
-            .find_one_and_update(filter, update, None)
-            .await
-        {
-            Ok(result) => match result {
-                Some(_) => Ok(password),
-                None => Err(ApiError::UserNotFound(user_id)),
+    pub async fn add_password(&self, password: Password) -> Result<Password, ApiError> {
+        self.user_service.get_user(password.user_id.clone()).await?;
+        let result = self.password_collection.insert_one(&password, None).await;
+        match result {
+            Ok(_) => Ok(password),
+            Err(err) => match err.kind.as_ref() {
+                ErrorKind::Write(WriteError(error)) => match error.code {
+                    11000 => Err(ApiError::PasswordAlreadyExists(password._id)),
+                    _ => Err(ApiError::InternalServerError(err.to_string())),
+                },
+                _ => Err(ApiError::InternalServerError(err.to_string())),
             },
-            Err(err) => Err(ApiError::InternalServerError(err.to_string())),
         }
     }
 
@@ -66,25 +53,16 @@ impl PasswordService {
         user_id: String,
         password_id: String,
     ) -> Result<(), ApiError> {
-        let filter = doc! {"_id": user_id.clone()};
+        let filter = doc! {"user_id": user_id.clone(), "_id": password_id.clone()};
 
-        let update = doc! {
-            "$pull": {
-                "passwords": {
-                    "_id": password_id.clone()
+        match self.password_collection.delete_one(filter, None).await {
+            Ok(result) => {
+                if result.deleted_count == 0 {
+                    Err(ApiError::PasswordNotFound(password_id))
+                } else {
+                    Ok(())
                 }
             }
-        };
-
-        match self
-            .user_collection
-            .find_one_and_update(filter, update, None)
-            .await
-        {
-            Ok(result) => match result {
-                Some(_) => Ok(()),
-                None => Err(ApiError::UserNotFound(user_id)),
-            },
             Err(err) => Err(ApiError::InternalServerError(err.to_string())),
         }
     }
@@ -95,27 +73,22 @@ impl PasswordService {
         password_id: String,
         password: String,
     ) -> Result<(), ApiError> {
-        let filter = doc! {"_id": user_id.clone()};
+        let filter = doc! {"user_id": user_id.clone(), "_id": password_id.clone()};
 
         let update = doc! {
             "$set": {
-                "passwords.$[password].password": password.clone()
+                "password": password.clone()
             }
         };
 
-        let options = UpdateOptions::builder()
-            .array_filters(Some(vec![doc! {"password._id": password_id.clone()}]))
-            .build();
+        let result = self
+            .password_collection
+            .update_one(filter, update, None)
+            .await;
 
-        match self
-            .user_collection
-            .update_one(filter, update, Some(options))
-            .await
-        {
+        match result {
             Ok(result) => {
-                if result.matched_count == 0 {
-                    Err(ApiError::UserNotFound(user_id))
-                } else if result.modified_count == 0 {
+                if result.modified_count == 0 || result.matched_count == 0 {
                     Err(ApiError::PasswordNotFound(password_id))
                 } else {
                     Ok(())
@@ -162,17 +135,32 @@ mod tests {
                 .insert_one(
                     User {
                         _id: USER_ID.to_string(),
-                        passwords: vec![Password {
-                            _id: PASSWORD_ID.to_string(),
-                            site: "test.com".to_string(),
-                            username: "user".to_string(),
-                            password: "password".to_string(),
-                        }],
                     },
                     None,
                 )
                 .await
                 .expect("Failed to insert test user");
+
+            let collection: Collection<Password> = client.get_collection("passwords");
+
+            collection
+                .delete_one(doc! {"_id": PASSWORD_ID.to_string()}, None)
+                .await
+                .expect("Failed to delete test password");
+
+            collection
+                .insert_one(
+                    Password {
+                        _id: PASSWORD_ID.to_string(),
+                        user_id: USER_ID.to_string(),
+                        site: "site".to_string(),
+                        username: "username".to_string(),
+                        password: "password".to_string(),
+                    },
+                    None,
+                )
+                .await
+                .expect("Failed to insert test password");
         }
 
         *initialized = true;
@@ -180,43 +168,103 @@ mod tests {
     }
 
     mod add_password {
-        use super::setup;
+        use super::{PASSWORD_ID, USER_ID};
+        use std::sync::Mutex;
+
+        use mongodb::bson::doc;
+        use mongodb::{Client, Collection};
+
+        use passphrasex_common::model::password::Password;
+
+        use crate::error::common::ApiError;
         use crate::model::common::GetCollection;
         use crate::service::password::PasswordService;
-        use mongodb::bson::doc;
-        use mongodb::Collection;
-        use passphrasex_common::model::password::Password;
-        use passphrasex_common::model::user::User;
+        use crate::service::user::UserService;
+
+        const NEW_PASSWORD_ID: &str = "new_password_id";
+
+        static INIT_MUTEX: Mutex<bool> = Mutex::new(false);
+
+        async fn setup() -> Client {
+            let client = super::setup().await;
+
+            let mut initialized = INIT_MUTEX.lock().expect("Failed to get mutex");
+            if !*initialized {
+                let collection: Collection<Password> = client.get_collection("passwords");
+                let filter = doc! {"_id": NEW_PASSWORD_ID.to_string()};
+                collection
+                    .delete_one(filter, None)
+                    .await
+                    .expect("Failed to delete passwords");
+
+                *initialized = true;
+            }
+
+            client
+        }
 
         #[tokio::test]
         async fn add_password() {
             let client = setup().await;
-            let collection: Collection<User> = client.get_collection("users");
-            let service = PasswordService::new(&client);
 
-            const NEW_PASSWORD_ID: &str = "new_password_id";
-            let result = service
-                .add_password(
-                    "user_id".to_string(),
-                    Password {
-                        _id: NEW_PASSWORD_ID.to_string(),
-                        site: "new_site".to_string(),
-                        username: "new_username".to_string(),
-                        password: "new_password".to_string(),
-                    },
-                )
-                .await;
+            let result =
+                add_password_internal(&client, USER_ID.to_string(), NEW_PASSWORD_ID.to_string())
+                    .await;
 
             assert!(result.is_ok());
 
-            let user: User = collection
-                .find_one(doc! {"_id": "user_id"}, None)
-                .await
-                .expect("Failed to find user")
-                .expect("User not found");
+            let collection: Collection<Password> = client.get_collection("passwords");
 
-            assert_eq!(user.passwords.len(), 2);
-            assert_eq!(user.passwords[1]._id, NEW_PASSWORD_ID);
+            let password: Option<Password> = collection
+                .find_one(
+                    doc! {"user_id": USER_ID.to_string(), "_id": NEW_PASSWORD_ID.to_string() },
+                    None,
+                )
+                .await
+                .expect("Failed to get password");
+
+            assert!(password.is_some());
+        }
+
+        #[tokio::test]
+        async fn add_password_missing_user() {
+            let client = setup().await;
+
+            let result =
+                add_password_internal(&client, "no_user".to_string(), NEW_PASSWORD_ID.to_string())
+                    .await;
+
+            assert!(result.is_err());
+            assert!(matches!(result, Err(ApiError::UserNotFound(_))));
+        }
+
+        #[tokio::test]
+        async fn add_password_duplicate() {
+            let client = setup().await;
+
+            let result =
+                add_password_internal(&client, USER_ID.to_string(), PASSWORD_ID.to_string()).await;
+
+            assert!(result.is_err());
+            assert!(matches!(result, Err(ApiError::PasswordAlreadyExists(_))));
+        }
+
+        async fn add_password_internal(
+            client: &Client,
+            user_id: String,
+            password_id: String,
+        ) -> Result<Password, ApiError> {
+            let service = PasswordService::new(&client, UserService::new(&client));
+
+            let password = Password {
+                _id: password_id,
+                user_id,
+                site: "site".to_string(),
+                username: "username".to_string(),
+                password: "password".to_string(),
+            };
+
+            service.add_password(password).await
         }
     }
 
@@ -226,15 +274,15 @@ mod tests {
         use crate::error::common::ApiError;
         use crate::model::common::GetCollection;
         use crate::service::password::PasswordService;
+        use crate::service::user::UserService;
         use mongodb::bson::doc;
         use mongodb::Collection;
-        use passphrasex_common::model::user::User;
+        use passphrasex_common::model::password::Password;
 
         #[tokio::test]
         async fn modify_password() -> anyhow::Result<()> {
             let client = setup().await;
-            let collection: Collection<User> = client.get_collection("users");
-            let service = PasswordService::new(&client);
+            let service = PasswordService::new(&client, UserService::new(&client));
 
             let result = service
                 .modify_password(
@@ -245,21 +293,21 @@ mod tests {
                 .await;
 
             assert!(result.is_ok());
-
-            let user: User = collection
-                .find_one(doc! {"_id": USER_ID.to_string()}, None)
+            let collection: Collection<Password> = client.get_collection("passwords");
+            let filter = doc! {"_id": PASSWORD_ID.to_string(), "user_id": USER_ID.to_string()};
+            let password: Password = collection
+                .find_one(filter, None)
                 .await?
-                .ok_or(anyhow::anyhow!("User not found"))?;
+                .ok_or(ApiError::PasswordNotFound(PASSWORD_ID.to_string()))?;
 
-            assert_eq!(user.passwords.len(), 1);
-            assert_eq!(user.passwords[0].password, "new_password".to_string());
+            assert!(password.password == "new_password");
             Ok(())
         }
 
         #[tokio::test]
         async fn modify_password_missing_user() -> anyhow::Result<()> {
             let client = setup().await;
-            let service = PasswordService::new(&client);
+            let service = PasswordService::new(&client, UserService::new(&client));
 
             let result = service
                 .modify_password(
@@ -270,14 +318,14 @@ mod tests {
                 .await;
 
             assert!(result.is_err());
-            assert!(matches!(result, Err(ApiError::UserNotFound(_))));
+            assert!(matches!(result, Err(ApiError::PasswordNotFound(_))));
             Ok(())
         }
 
         #[tokio::test]
         async fn modify_password_missing_password() -> anyhow::Result<()> {
             let client = setup().await;
-            let service = PasswordService::new(&client);
+            let service = PasswordService::new(&client, UserService::new(&client));
 
             let result = service
                 .modify_password(
