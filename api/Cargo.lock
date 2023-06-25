@@ -1162,6 +1162,7 @@ name = "passphrasex_common"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "anyhow",
  "base64 0.21.0",
  "bip32",
  "crypto_box",
