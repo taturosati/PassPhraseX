@@ -1,12 +1,12 @@
-use std::error::Error;
-use aes::Aes256;
-use aes::cipher::{BlockEncrypt, BlockDecrypt, BlockSizeUser};
-use aes::cipher::generic_array::GenericArray;
-use argon2::{self, Config, hash_raw, verify_raw};
 use crate::crypto::common::EncryptedValue;
+use aes::cipher::generic_array::GenericArray;
+use aes::cipher::{BlockDecrypt, BlockEncrypt, BlockSizeUser};
+use aes::Aes256;
+use argon2::{self, hash_raw, verify_raw, Config};
 use crypto_box::aead::KeyInit;
+use std::error::Error;
 
-use base64::{Engine, engine::general_purpose::URL_SAFE};
+use base64::{engine::general_purpose::URL_SAFE, Engine};
 use rand_core::{OsRng, RngCore};
 pub fn hash(message: &str, salt: &str) -> Result<EncryptedValue, Box<dyn Error>> {
     let config = Config::default();
@@ -24,8 +24,6 @@ pub fn hash(message: &str, salt: &str) -> Result<EncryptedValue, Box<dyn Error>>
     }
 }
 
-
-
 pub fn verify_password(password: &str, hash: &str, salt: &str) -> Result<(), Box<dyn Error>> {
     let hash = match URL_SAFE.decode(hash) {
         Ok(hash) => hash,
@@ -38,14 +36,19 @@ pub fn verify_password(password: &str, hash: &str, salt: &str) -> Result<(), Box
     };
 
     let config = Config::default();
-    match verify_raw(password.as_bytes(), salt.as_slice(),hash.as_slice(), &config) {
+    match verify_raw(
+        password.as_bytes(),
+        salt.as_slice(),
+        hash.as_slice(),
+        &config,
+    ) {
         Ok(valid) => {
             if valid {
                 Ok(())
             } else {
                 Err("Incorrect password".into())
             }
-        },
+        }
         Err(e) => Err(Box::new(e)),
     }
 }
@@ -61,7 +64,7 @@ pub fn encrypt_data(key: &str, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let key = URL_SAFE.decode(key)?;
     let aes = match Aes256::new_from_slice(key.as_slice()) {
         Ok(aes) => aes,
-        Err(_) => return Err("Invalid key".into())
+        Err(_) => return Err("Invalid key".into()),
     };
 
     let block_size = Aes256::block_size();
@@ -84,7 +87,7 @@ pub fn decrypt_data(key: &str, enc: Vec<u8>) -> Result<Vec<u8>, Box<dyn Error>> 
     let key = URL_SAFE.decode(key)?;
     let aes = match Aes256::new_from_slice(key.as_slice()) {
         Ok(aes) => aes,
-        Err(_) => return Err("Invalid key".into())
+        Err(_) => return Err("Invalid key".into()),
     };
 
     let block_size = Aes256::block_size();
