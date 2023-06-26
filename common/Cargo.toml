@@ -1,6 +1,6 @@
 [package]
 name = "passphrasex_common"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Common code for PassPhraseX"
 license = "GPL-3.0"
@@ -17,3 +17,4 @@ base64 = "0.21.0"
 rust-argon2 = "1.0"
 aes = "0.8.2"
 rand = "0.8.5"
+anyhow = "1.0.71"
