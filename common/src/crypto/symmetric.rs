@@ -5,7 +5,6 @@ use aes::Aes256;
 use anyhow::format_err;
 use argon2::{self, hash_raw, verify_raw, Config};
 use crypto_box::aead::KeyInit;
-use std::error::Error;
 
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 use rand_core::{OsRng, RngCore};
