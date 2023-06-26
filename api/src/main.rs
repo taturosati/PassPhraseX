@@ -1,11 +1,12 @@
-mod model;
+mod error;
 mod handlers;
+mod model;
 mod service;
 
 use model::common::DatabaseConfig;
 
-use service::user::UserService;
 use service::password::PasswordService;
+use service::user::UserService;
 
 use handlers::user::UserController;
 
@@ -14,7 +15,7 @@ use axum::Router;
 #[derive(Clone)]
 pub struct AppData {
     user_service: UserService,
-    password_service: PasswordService
+    password_service: PasswordService,
 }
 
 #[tokio::main]
@@ -28,15 +29,18 @@ async fn main() {
 
     println!("Connected to database");
 
+    let user_service = UserService::new(&client);
+
     let app = Router::new()
         .merge(user_controller.router)
         .with_state(AppData {
-            user_service: UserService::new(&client),
-            password_service: PasswordService::new(&client)
+            user_service: user_service.clone(),
+            password_service: PasswordService::new(&client, user_service),
         });
 
     // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().expect("Failed to parse address"))
         .serve(app.into_make_service())
-        .await.expect("Failed to start server");
+        .await
+        .expect("Failed to start server");
 }
