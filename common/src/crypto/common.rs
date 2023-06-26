@@ -8,21 +8,20 @@ pub struct EncryptedValue {
 }
 
 impl From<String> for EncryptedValue {
-    fn from(text: String) -> Self {
-        let mut parts = text.split(';');
+    fn from(value: String) -> Self {
+        let mut parts = value.split(';');
         let cipher = parts.next().expect("Missing cipher");
         let nonce = parts.next().expect("Missing nonce");
-        EncryptedValue {
+        Self {
             cipher: cipher.to_owned(),
             nonce: nonce.to_owned(),
         }
     }
 }
 
-
-impl Into<String> for EncryptedValue {
-    fn into(self) -> String {
-        format!("{};{}", self.cipher, self.nonce)
+impl From<EncryptedValue> for String {
+    fn from(value: EncryptedValue) -> Self {
+        format!("{};{}", value.cipher, value.nonce)
     }
 }
 

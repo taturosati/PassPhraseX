@@ -1,0 +1,44 @@
+on:
+    push:
+        branches: [ main, main_cli ]
+    pull_request:
+        branches: [ main, main_cli ]
+
+name: CLI
+
+jobs:
+    test:
+        name: Lint & Test cli
+        runs-on: ubuntu-latest
+        steps:
+            - name: Install tools
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libssl-dev pkg-config curl build-essential
+
+            - name: Checkout sources
+              uses: actions/checkout@v2
+
+            - name: Install stable toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                  profile: minimal
+                  toolchain: stable
+                  override: true
+
+            - name: Install clippy & rustfmt
+              run: |
+                  rustup component add clippy
+                  rustup component add rustfmt
+
+            - name: Format
+              working-directory: cli
+              run: cargo fmt --all --check
+
+            - name: Lint
+              working-directory: cli
+              run: cargo clippy --all -- -D warnings
+
+            - name: Run cargo check
+              working-directory: cli
+              run: cargo check --all

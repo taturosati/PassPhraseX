@@ -1,0 +1,49 @@
+on:
+  push:
+    branches: [ main, main_api ]
+  pull_request:
+    branches: [ main, main_api ]
+
+name: API
+
+jobs:
+  test:
+    name: Lint & Test API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config curl build-essential
+
+      - name: Start MongoDB
+        uses: supercharge/mongodb-github-action@1.6.0
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install clippy & rustfmt
+        run: |
+          rustup component add clippy
+          rustup component add rustfmt
+
+      - name: Format
+        working-directory: api
+        run: cargo fmt --all --check
+
+      - name: Lint
+        working-directory: api
+        run: cargo clippy --all -- -D warnings
+
+      - name: Run cargo check & test
+        working-directory: api
+        run: |
+          cargo check --all
+          cargo test --all
