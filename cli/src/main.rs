@@ -6,8 +6,8 @@ use clap::{Parser, Subcommand};
 use std::error::Error;
 use std::string::String;
 
-use passphrasex_common::generator::generate_password;
 use passphrasex::{auth_device, register, App};
+use passphrasex_common::generator::generate_password;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

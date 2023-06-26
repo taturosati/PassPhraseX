@@ -4,7 +4,6 @@ use base64::{engine::general_purpose::URL_SAFE, Engine};
 use bip32::{Mnemonic, XPrv};
 use crypto_box::aead::{Aead, AeadCore, OsRng, Payload};
 use crypto_box::{ChaChaBox, Nonce, PublicKey, SecretKey};
-use std::error::Error;
 use std::str;
 
 #[derive(Clone)]
@@ -137,8 +136,10 @@ impl KeyPair {
         }
     }
 
-    pub fn hash(&self, message: &str) -> Result<String, Box<dyn Error>> {
-        Ok(hash(message, &URL_SAFE.encode(&self.public_key))?.cipher)
+    pub fn hash(&self, message: &str) -> anyhow::Result<String> {
+        Ok(hash(message, &URL_SAFE.encode(&self.public_key))
+            .map_err(|_| anyhow::format_err!("Failed to hash"))?
+            .cipher)
     }
 
     pub fn get_pk(&self) -> String {
@@ -153,7 +154,7 @@ pub fn public_key_from_base64(pk: &str) -> PublicKey {
     PublicKey::from(buff)
 }
 
-pub fn verify(public_key: &PublicKey, value: EncryptedValue) -> Result<String, Box<dyn Error>> {
+pub fn verify(public_key: &PublicKey, value: EncryptedValue) -> anyhow::Result<String> {
     let verifiable_box = ChaChaBox::new(public_key, &SecretKey::from([0; 32]));
 
     let nonce = URL_SAFE.decode(value.nonce.as_bytes())?;
@@ -168,6 +169,6 @@ pub fn verify(public_key: &PublicKey, value: EncryptedValue) -> Result<String, B
 
     match verifiable_box.decrypt(&Nonce::from(content), payload) {
         Ok(dec) => Ok(str::from_utf8(&dec)?.to_owned()),
-        Err(_) => Err("Failed to decrypt".into()),
+        Err(_) => Err(anyhow::format_err!("Failed to decrypt")),
     }
 }
