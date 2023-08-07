@@ -1,0 +1,19 @@
+[package]
+name = "foreground-script"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Project dependencies
+messages = "=0.1.0"
+
+# External dependencies
+gloo-console = "0.2.3"
+gloo-utils = "0.1.5"
+wasm-bindgen = "0.2.83"
+web-extensions-sys = "0.4.1"
+web-sys = { version = "0.3.60", features = ["DomTokenList", "Element"] }

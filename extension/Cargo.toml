@@ -1,0 +1,15 @@
+[workspace]
+members = [
+  "background-script",
+  "foreground-script",
+  "options",
+  "messages"
+]
+
+[patch.crates-io]
+messages           = { path = "messages" }
+
+[profile.release]
+lto = true
+opt-level = 'z'
+codegen-units = 1
