@@ -1,14 +1,12 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use gloo_console as console;
-use gloo_timers::future::TimeoutFuture;
 use gloo_utils::format::JsValueSerdeExt;
 use js_sys::{Function, Object};
 use messages::{
     next_request_id, AppRequest, AppRequestPayload, AppResponse, AppResponsePayload, PortRequest,
-    PortRequestPayload, PortResponse, PortResponsePayload, Request, RequestHeader, RequestId,
-    Response, ResponseHeader, StreamingFinishedStatus, StreamingResponsePayload,
-    StreamingStartedStatus, INITIAL_REQUEST_ID,
+    PortRequestPayload, PortResponse, PortResponsePayload, Request, RequestId, Response,
+    INITIAL_REQUEST_ID,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -86,27 +84,6 @@ impl ConnectedPorts {
             })
     }
 
-    fn post_message<T: Serialize>(&self, id: PortId, msg: &T) -> Result<(), PortError> {
-        self.ctx_by_id
-            .get(&id)
-            .ok_or(PortError::NotConnected)
-            .map(|ctx| {
-                let PortContext {
-                    port,
-                    last_request_id: _,
-                } = ctx;
-                let msg = match JsValue::from_serde(msg) {
-                    Ok(msg) => msg,
-                    Err(err) => {
-                        console::error!("Failed to serialize message", err.to_string());
-                        return;
-                    }
-                };
-                console::debug!("Posting message on port", port, &msg);
-                port.post_message(&msg);
-            })
-    }
-
     fn next_request_id(&mut self, id: PortId) -> Result<RequestId, PortError> {
         self.ctx_by_id
             .get_mut(&id)
@@ -140,12 +117,12 @@ impl App {
         self.connected_ports.next_request_id(port_id)
     }
 
-    fn post_port_message<T: Serialize>(&self, port_id: PortId, msg: &T) -> Result<(), PortError> {
-        self.connected_ports.post_message(port_id, msg)
-    }
-
     fn post_port_message_js(&self, port_id: PortId, msg: &JsValue) -> Result<(), PortError> {
         self.connected_ports.post_message_js(port_id, msg)
+    }
+
+    fn get_credential(&self, _site: &str) -> Result<(String, String), PortError> {
+        Ok(("username".to_string(), "password".to_string()))
     }
 }
 
@@ -334,97 +311,10 @@ fn handle_app_request(
     })
 }
 
-#[derive(Debug, Clone, Copy)]
-enum StreamingTaskStatus {
-    Pending,
-    Finished,
-}
-
 #[derive(Debug, Error)]
 enum StreamingTaskError {
     #[error(transparent)]
     Port(#[from] PortError),
-
-    #[error("not pending")]
-    NotPending,
-
-    #[error("item count overflow")]
-    ItemCountOverflow,
-}
-
-struct StreamingTask {
-    app: Rc<RefCell<App>>,
-    port_id: PortId,
-    request_id: RequestId,
-    request_header: RequestHeader,
-    item_count: usize,
-    status: StreamingTaskStatus,
-}
-
-impl StreamingTask {
-    fn new(
-        app: Rc<RefCell<App>>,
-        port_id: PortId,
-        request_id: RequestId,
-        request_header: RequestHeader,
-    ) -> Self {
-        Self {
-            app,
-            port_id,
-            request_id,
-            request_header,
-            item_count: 0,
-            status: StreamingTaskStatus::Pending,
-        }
-    }
-
-    fn new_response_header(&self) -> ResponseHeader {
-        self.request_header.clone().into_response(self.request_id)
-    }
-
-    fn next_item(&mut self /*empty item data*/) -> Result<usize, StreamingTaskError> {
-        if !matches!(self.status, StreamingTaskStatus::Pending) {
-            return Err(StreamingTaskError::NotPending);
-        }
-        let item_count = self
-            .item_count
-            .checked_add(1)
-            .ok_or(StreamingTaskError::ItemCountOverflow)?;
-        let payload = PortResponsePayload::Streaming(StreamingResponsePayload::Item { item_count });
-        let response = Response {
-            header: self.new_response_header(),
-            payload,
-        };
-        console::debug!("Next streaming item response", format!("{response:?}"));
-        self.app
-            .borrow()
-            .post_port_message(self.port_id, &response)?;
-        self.item_count = item_count;
-        Ok(item_count)
-    }
-
-    fn abort(&mut self, reason: Option<String>) -> Result<(), StreamingTaskError> {
-        self.finish(StreamingFinishedStatus::Aborted { reason })
-    }
-
-    fn finish(&mut self, status: StreamingFinishedStatus) -> Result<(), StreamingTaskError> {
-        if !matches!(self.status, StreamingTaskStatus::Pending) {
-            return Err(StreamingTaskError::NotPending);
-        }
-        let payload = PortResponsePayload::Streaming(StreamingResponsePayload::Finished {
-            status,
-            item_count: self.item_count,
-        });
-        let response = Response {
-            header: self.new_response_header(),
-            payload,
-        };
-        self.app
-            .borrow()
-            .post_port_message(self.port_id, &response)?;
-        self.status = StreamingTaskStatus::Finished;
-        Ok(())
-    }
 }
 
 /// Handle a port-local request.
@@ -434,77 +324,15 @@ impl StreamingTask {
 /// TODO: Extract into domain crate
 fn handle_port_request(
     app: &Rc<RefCell<App>>,
-    port_id: PortId,
+    _port_id: PortId,
     request_id: RequestId,
     request: PortRequest,
 ) -> Option<PortResponse> {
     let Request { header, payload } = request;
     let payload: Option<_> = match payload {
-        PortRequestPayload::Ping => PortResponsePayload::Pong.into(),
-        PortRequestPayload::StartStreaming { num_items } => {
-            let status = match num_items {
-                0 => StreamingStartedStatus::Rejected {
-                    reason: "no items requested".to_string().into(),
-                },
-                10.. => StreamingStartedStatus::Rejected {
-                    reason: "too many items requested".to_string().into(),
-                },
-                _ => {
-                    let task =
-                        StreamingTask::new(Rc::clone(app), port_id, request_id, header.clone());
-                    let task = Rc::new(RefCell::new(task));
-                    wasm_bindgen_futures::spawn_local({
-                        let task = Rc::clone(&task);
-                        async move {
-                            console::debug!("Start streaming");
-                            for item_count in 1..=num_items {
-                                if let Err(err) = task.borrow_mut().next_item() {
-                                    if matches!(err, StreamingTaskError::NotPending) {
-                                        console::info!("Streaming task has been aborted prematurely before item", item_count);
-                                    } else {
-                                        console::warn!(
-                                            "Streaming task failed for item",
-                                            item_count,
-                                            err.to_string()
-                                        );
-                                    }
-                                    return;
-                                }
-                                // Delay the next (or final) response. Without yielding at some point
-                                // the locally spawned task would finish before the started response
-                                // could be posted.
-                                TimeoutFuture::new(5_000).await;
-                            }
-                            console::debug!("Finish streaming");
-                            task.borrow_mut()
-                                .finish(StreamingFinishedStatus::Completed)
-                                .unwrap();
-                        }
-                    });
-                    wasm_bindgen_futures::spawn_local({
-                        let task = Rc::clone(&task);
-                        async move {
-                            // Try to abort the task after 20 secs elapsed
-                            TimeoutFuture::new(20_000).await;
-                            if let Err(err) = task
-                                .borrow_mut()
-                                .abort("timeout expired".to_string().into())
-                            {
-                                if matches!(err, StreamingTaskError::NotPending) {
-                                    console::info!("Streaming task has already finished and does not need to be aborted");
-                                } else {
-                                    console::warn!(
-                                        "Failed to abort streaming task",
-                                        err.to_string()
-                                    );
-                                }
-                            }
-                        }
-                    });
-                    StreamingStartedStatus::Accepted
-                }
-            };
-            PortResponsePayload::Streaming(StreamingResponsePayload::Started { status }).into()
+        PortRequestPayload::GetCredential { site } => {
+            let (username, password) = app.borrow().get_credential(&site).ok()?;
+            PortResponsePayload::Credential { username, password }.into()
         }
     };
     // The started response might be posted after the first stream item response

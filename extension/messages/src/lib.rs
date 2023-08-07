@@ -75,8 +75,7 @@ pub type AppResponse = Response<AppResponsePayload>;
 /// Port-local request message.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PortRequestPayload {
-    Ping,
-    StartStreaming { num_items: usize },
+    GetCredential { site: String },
 }
 
 pub type PortRequest = Request<PortRequestPayload>;
@@ -84,61 +83,7 @@ pub type PortRequest = Request<PortRequestPayload>;
 /// Port-local response message.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PortResponsePayload {
-    Pong,
-    Streaming(StreamingResponsePayload),
+    Credential { username: String, password: String },
 }
 
 pub type PortResponse = Response<PortResponsePayload>;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum StreamingStartedStatus {
-    /// The request has been accepted and will be processed.
-    Accepted,
-    /// The request has been rejected.
-    Rejected {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum StreamingFinishedStatus {
-    /// Processing has been completed.
-    Completed,
-    /// Processing has been aborted prematurely.
-    Aborted {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reason: Option<String>,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum StreamingResponsePayload {
-    Started {
-        status: StreamingStartedStatus,
-    },
-    /// A streaming item.
-    ///
-    /// The `item_count` serves as a 1-based index for (re-)ordering
-    /// received item messages. Depending on the dispatching strategy
-    /// messages might arrive out of order and receivers should account
-    /// for that.
-    Item {
-        item_count: usize,
-    },
-    /// Request processing has finished.
-    Finished {
-        status: StreamingFinishedStatus,
-
-        /// The total item count.
-        ///
-        /// Denotes the total number of item messages that have been sent.
-        /// After the finished message has been sent no more item messages
-        /// will be sent.
-        ///
-        /// In-flight item messages that have already been sent but have
-        /// not yet been received might arrive later and out of order depending
-        /// on the dispatching strategy.
-        item_count: usize,
-    },
-}
