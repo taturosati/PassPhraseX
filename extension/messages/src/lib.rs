@@ -60,6 +60,7 @@ pub struct Response<T> {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AppRequestPayload {
     GetOptionsInfo,
+    Login(String),
 }
 
 pub type AppRequest = Request<AppRequestPayload>;
@@ -67,7 +68,13 @@ pub type AppRequest = Request<AppRequestPayload>;
 /// App response message.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AppResponsePayload {
-    OptionsInfo { version: String },
+    OptionsInfo {
+        version: String,
+    },
+    Login {
+        success: bool,
+        error: Option<String>,
+    },
 }
 
 pub type AppResponse = Response<AppResponsePayload>;

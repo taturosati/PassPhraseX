@@ -3,7 +3,8 @@ members = [
   "background-script",
   "foreground-script",
   "options",
-  "messages"
+  "messages",
+  "popup"
 ]
 
 [patch.crates-io]

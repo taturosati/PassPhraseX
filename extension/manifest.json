@@ -8,6 +8,9 @@
         "type": "module"
     },
     "options_page": "./options/index.html",
+    "action": {
+        "default_popup": "./popup/index.html"
+    },
     "permissions": [
         "activeTab",
         "tabs",

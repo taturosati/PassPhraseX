@@ -18,3 +18,5 @@ thiserror = "1.0.37"
 wasm-bindgen = "0.2.83"
 wasm-bindgen-futures = "0.4.33"
 web-extensions-sys = "0.4.1"
+passphrasex_common = { version = "0.2.0", path = "../../common" }
+

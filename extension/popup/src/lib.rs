@@ -14,7 +14,7 @@ use yew::prelude::*;
 fn App() -> Html {
     let auth = use_state(|| false);
 
-    let on_login: Callback<()> = Callback::from({
+    let on_login = Callback::from({
         let auth = auth.clone();
         move |_| {
             auth.set(true);

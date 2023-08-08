@@ -12,6 +12,7 @@ use serde::Serialize;
 use thiserror::Error;
 use wasm_bindgen::{prelude::*, JsCast};
 
+use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use web_extensions_sys::{chrome, Port, Tab, TabChangeInfo};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -292,23 +293,31 @@ fn on_port_request(
 ///
 /// Optionally returns a single response.
 ///
-/// TODO: Extract into domain crate
 fn handle_app_request(
     _app: &Rc<RefCell<App>>,
     request_id: RequestId,
     request: AppRequest,
 ) -> Option<AppResponse> {
     let Request { header, payload } = request;
-    let payload: Option<_> = match payload {
+    let payload: AppResponsePayload = match payload {
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {
             version: VERSION.to_string(),
+        },
+        AppRequestPayload::Login(seed_phrase) => {
+            let seed_phrase = SeedPhrase::from(seed_phrase);
+            let key_pair = KeyPair::new(seed_phrase);
+
+            AppResponsePayload::Login {
+                success: false,
+                error: Some(key_pair.hash("password").unwrap()),
+            }
         }
-        .into(),
     };
-    payload.map(|payload| Response {
+    Response {
         header: header.into_response(request_id),
         payload,
-    })
+    }
+    .into()
 }
 
 #[derive(Debug, Error)]
