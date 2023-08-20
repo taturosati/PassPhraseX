@@ -97,6 +97,7 @@ impl ConnectedPorts {
 struct App {
     last_request_id: RequestId,
     connected_ports: ConnectedPorts,
+    key_pair: Option<KeyPair>,
 }
 
 impl App {
@@ -122,6 +123,31 @@ impl App {
         self.connected_ports.post_message_js(port_id, msg)
     }
 
+    async fn login(&mut self, seed_phrase: String) -> anyhow::Result<()> {
+        let seed_phrase = SeedPhrase::from(seed_phrase);
+        let key_pair = KeyPair::new(seed_phrase);
+
+        // TODO: Encrypt private key with device password
+
+        let encoded_sk = hex::encode(key_pair.private_key.as_bytes());
+
+        let storage_entries = JsValue::from_serde(&[&["private_key", &encoded_sk]])
+            .map_err(|_| anyhow::anyhow!("Failed to create key storage entries"))?;
+
+        let key_storage = Object::from_entries(&storage_entries)
+            .map_err(|_| anyhow::anyhow!("Failed to create key storage object"))?;
+
+        chrome()
+            .storage()
+            .local()
+            .set(&key_storage)
+            .await
+            .map_err(|_| anyhow::anyhow!("Failed to store key pair in local storage"))?;
+
+        self.key_pair = Some(key_pair);
+        Ok(())
+    }
+
     fn get_credential(&self, _site: &str) -> Result<(String, String), PortError> {
         Ok(("username".to_string(), "password".to_string()))
     }
@@ -137,7 +163,7 @@ pub fn start() {
         let app = Rc::clone(&app);
         move |request, sender, send_response| on_message(&app, request, sender, send_response)
     };
-    let closure: Closure<dyn Fn(JsValue, JsValue, Function)> = Closure::new(on_message);
+    let closure: Closure<dyn Fn(JsValue, JsValue, Function) -> bool> = Closure::new(on_message);
     chrome()
         .runtime()
         .on_message()
@@ -162,19 +188,36 @@ pub fn start() {
     closure.forget();
 }
 
-fn on_message(app: &Rc<RefCell<App>>, request: JsValue, sender: JsValue, send_response: Function) {
+fn on_message(
+    app: &Rc<RefCell<App>>,
+    request: JsValue,
+    sender: JsValue,
+    send_response: Function,
+) -> bool {
     console::debug!("Received request message", &request, &sender);
     let request_id = app.borrow_mut().next_request_id();
-    if let Some(response) = on_request(app, request_id, request) {
-        let this = JsValue::null();
-        if let Err(err) = send_response.call1(&this, &response) {
-            console::error!(
-                "Failed to send response message",
-                send_response,
-                response,
-                err
-            );
-        }
+
+    {
+        let app = app.clone();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let future = on_request(&app, request_id, request);
+
+            if let Some(response) = future.await {
+                console::debug!("Sending response message", &response, &sender);
+                let this = JsValue::null();
+                if let Err(err) = send_response.call1(&this, &response) {
+                    console::error!(
+                        "Failed to send response message",
+                        send_response,
+                        response,
+                        err
+                    );
+                }
+            }
+        });
+
+        true
     }
 }
 
@@ -248,14 +291,18 @@ fn on_port_message(app: &Rc<RefCell<App>>, port_id: PortId, request: JsValue) {
     }
 }
 
-fn on_request(app: &Rc<RefCell<App>>, request_id: RequestId, request: JsValue) -> Option<JsValue> {
+async fn on_request(
+    app: &Rc<RefCell<App>>,
+    request_id: RequestId,
+    request: JsValue,
+) -> Option<JsValue> {
     let request = request
         .into_serde()
         .map_err(|err| {
             console::error!("Failed to deserialize request message", &err.to_string());
         })
         .ok()?;
-    let response = handle_app_request(app, request_id, request);
+    let response = handle_app_request(app, request_id, request).await;
     JsValue::from_serde(&response)
         .map_err(|err| {
             console::error!("Failed to serialize response message", &err.to_string());
@@ -293,8 +340,8 @@ fn on_port_request(
 ///
 /// Optionally returns a single response.
 ///
-fn handle_app_request(
-    _app: &Rc<RefCell<App>>,
+async fn handle_app_request(
+    app: &Rc<RefCell<App>>,
     request_id: RequestId,
     request: AppRequest,
 ) -> Option<AppResponse> {
@@ -303,16 +350,19 @@ fn handle_app_request(
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {
             version: VERSION.to_string(),
         },
-        AppRequestPayload::Login(seed_phrase) => {
-            let seed_phrase = SeedPhrase::from(seed_phrase);
-            let key_pair = KeyPair::new(seed_phrase);
-
-            AppResponsePayload::Login {
+        AppRequestPayload::Login(seed_phrase) => match app.take().login(seed_phrase).await {
+            Ok(()) => AppResponsePayload::Login {
+                success: true,
+                error: Some("".to_string()),
+            },
+            Err(err) => AppResponsePayload::Login {
                 success: false,
-                error: Some(key_pair.hash("password").unwrap()),
-            }
-        }
+                error: Some(err.to_string()),
+            },
+        },
     };
+
+    console::debug!(format!("Payload: {:?}", payload));
     Response {
         header: header.into_response(request_id),
         payload,

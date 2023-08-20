@@ -1,3 +1,4 @@
+mod api;
 mod components;
 
 use gloo_console as console;
