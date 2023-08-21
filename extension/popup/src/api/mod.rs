@@ -31,3 +31,23 @@ where
         };
     });
 }
+
+pub fn try_auth<F>(payload: AppRequestPayload, callback: F)
+where
+    F: Fn(Option<String>) + 'static,
+{
+    app_request(payload, move |result| match result {
+        Ok(payload) => {
+            if let AppResponsePayload::Auth { error } = payload {
+                if let Some(error) = error {
+                    callback(Some(error));
+                } else {
+                    callback(None);
+                }
+            }
+        }
+        Err(err) => {
+            callback(Some(err));
+        }
+    });
+}

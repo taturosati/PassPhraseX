@@ -1,3 +1,6 @@
+mod storage;
+
+use anyhow::anyhow;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use gloo_console as console;
@@ -12,7 +15,9 @@ use serde::Serialize;
 use thiserror::Error;
 use wasm_bindgen::{prelude::*, JsCast};
 
+use crate::storage::StorageSecretKey;
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
+use passphrasex_common::crypto::symmetric::{decrypt_data, encrypt_data, generate_salt, hash};
 use web_extensions_sys::{chrome, Port, Tab, TabChangeInfo};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -123,26 +128,42 @@ impl App {
         self.connected_ports.post_message_js(port_id, msg)
     }
 
-    async fn login(&mut self, seed_phrase: String) -> anyhow::Result<()> {
+    async fn get_status(&self) -> anyhow::Result<bool> {
+        let sk = StorageSecretKey::load().await?;
+        Ok(sk.secret_key.is_some())
+    }
+
+    async fn unlock(&mut self, device_password: String) -> anyhow::Result<()> {
+        let sk = StorageSecretKey::load().await?;
+
+        let salt = sk.salt.ok_or(anyhow!("No salt found"))?;
+        let sk = sk.secret_key.ok_or(anyhow!("No sk found"))?;
+        let sk = hex::decode(sk).map_err(|err| anyhow!("Unable to decode sk: {:?}", err))?;
+
+        let pass_hash = hash(&device_password, &salt)?;
+
+        let sk = decrypt_data(&pass_hash.cipher, sk)?;
+
+        let mut content: [u8; 32] = [0; 32];
+        content.copy_from_slice(&sk[..32]);
+
+        self.key_pair = Some(KeyPair::from_sk(content));
+
+        Ok(())
+    }
+
+    async fn login(&mut self, seed_phrase: String, device_password: String) -> anyhow::Result<()> {
+        let salt = generate_salt()?;
+        let pass_hash = hash(&device_password, &salt)?;
+
         let seed_phrase = SeedPhrase::from(seed_phrase);
         let key_pair = KeyPair::new(seed_phrase);
 
-        // TODO: Encrypt private key with device password
+        let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
+        let encoded_sk = hex::encode(enc_sk.as_slice());
 
-        let encoded_sk = hex::encode(key_pair.private_key.as_bytes());
-
-        let storage_entries = JsValue::from_serde(&[&["private_key", &encoded_sk]])
-            .map_err(|_| anyhow::anyhow!("Failed to create key storage entries"))?;
-
-        let key_storage = Object::from_entries(&storage_entries)
-            .map_err(|_| anyhow::anyhow!("Failed to create key storage object"))?;
-
-        chrome()
-            .storage()
-            .local()
-            .set(&key_storage)
-            .await
-            .map_err(|_| anyhow::anyhow!("Failed to store key pair in local storage"))?;
+        let key_storage = StorageSecretKey::new(Some(encoded_sk.clone()), Some(salt));
+        key_storage.save().await?;
 
         self.key_pair = Some(key_pair);
         Ok(())
@@ -350,19 +371,43 @@ async fn handle_app_request(
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {
             version: VERSION.to_string(),
         },
-        AppRequestPayload::Login(seed_phrase) => match app.take().login(seed_phrase).await {
-            Ok(()) => AppResponsePayload::Login {
-                success: true,
-                error: Some("".to_string()),
-            },
-            Err(err) => AppResponsePayload::Login {
-                success: false,
+        AppRequestPayload::GetStatus => match app.take().get_status().await {
+            Ok(is_logged_in) => AppResponsePayload::Status { is_logged_in },
+            Err(_) => {
+                return None;
+            }
+        },
+        AppRequestPayload::Unlock { device_password } => {
+            match app.take().unlock(device_password).await {
+                Ok(()) => AppResponsePayload::Auth { error: None },
+                Err(err) => AppResponsePayload::Auth {
+                    error: Some(err.to_string()),
+                },
+            }
+        }
+        AppRequestPayload::Login {
+            seed_phrase,
+            device_password,
+        } => match app.take().login(seed_phrase, device_password).await {
+            Ok(()) => AppResponsePayload::Auth { error: None },
+            Err(err) => AppResponsePayload::Auth {
                 error: Some(err.to_string()),
             },
         },
+        AppRequestPayload::GetCredential {
+            site: _site,
+            username: _username,
+        } => AppResponsePayload::Credential {
+            username: "username".to_string(),
+            password: "password".to_string(),
+        },
+        AppRequestPayload::AddCredential {
+            site: _site,
+            username,
+            password,
+        } => AppResponsePayload::Credential { username, password },
     };
 
-    console::debug!(format!("Payload: {:?}", payload));
     Response {
         header: header.into_response(request_id),
         payload,

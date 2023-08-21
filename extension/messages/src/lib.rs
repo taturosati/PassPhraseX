@@ -60,7 +60,23 @@ pub struct Response<T> {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AppRequestPayload {
     GetOptionsInfo,
-    Login(String),
+    GetStatus,
+    Unlock {
+        device_password: String,
+    },
+    Login {
+        seed_phrase: String,
+        device_password: String,
+    },
+    GetCredential {
+        site: String,
+        username: Option<String>,
+    },
+    AddCredential {
+        site: String,
+        username: String,
+        password: String,
+    },
 }
 
 pub type AppRequest = Request<AppRequestPayload>;
@@ -68,13 +84,10 @@ pub type AppRequest = Request<AppRequestPayload>;
 /// App response message.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AppResponsePayload {
-    OptionsInfo {
-        version: String,
-    },
-    Login {
-        success: bool,
-        error: Option<String>,
-    },
+    Status { is_logged_in: bool },
+    OptionsInfo { version: String },
+    Auth { error: Option<String> },
+    Credential { username: String, password: String },
 }
 
 pub type AppResponse = Response<AppResponsePayload>;
