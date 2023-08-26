@@ -128,14 +128,21 @@ impl App {
         self.connected_ports.post_message_js(port_id, msg)
     }
 
-    async fn get_status(&self) -> anyhow::Result<bool> {
-        let sk = StorageSecretKey::load().await?;
-        Ok(sk.secret_key.is_some())
+    fn get_status(&self, sk: StorageSecretKey) -> anyhow::Result<(bool, bool)> {
+        if self.key_pair.is_some() {
+            // Logged in & unlocked
+            return Ok((true, true));
+        }
+
+        if sk.secret_key.is_none() {
+            // Not logged in
+            return Ok((false, false));
+        }
+
+        Ok((true, false))
     }
 
-    async fn unlock(&mut self, device_password: String) -> anyhow::Result<()> {
-        let sk = StorageSecretKey::load().await?;
-
+    fn unlock(&mut self, sk: StorageSecretKey, device_password: String) -> anyhow::Result<()> {
         let salt = sk.salt.ok_or(anyhow!("No salt found"))?;
         let sk = sk.secret_key.ok_or(anyhow!("No sk found"))?;
         let sk = hex::decode(sk).map_err(|err| anyhow!("Unable to decode sk: {:?}", err))?;
@@ -147,12 +154,17 @@ impl App {
         let mut content: [u8; 32] = [0; 32];
         content.copy_from_slice(&sk[..32]);
 
+        console::log!(format!("unlock, {:?}", content));
         self.key_pair = Some(KeyPair::from_sk(content));
 
         Ok(())
     }
 
-    async fn login(&mut self, seed_phrase: String, device_password: String) -> anyhow::Result<()> {
+    fn login(
+        &mut self,
+        seed_phrase: String,
+        device_password: String,
+    ) -> anyhow::Result<StorageSecretKey> {
         let salt = generate_salt()?;
         let pass_hash = hash(&device_password, &salt)?;
 
@@ -163,10 +175,11 @@ impl App {
         let encoded_sk = hex::encode(enc_sk.as_slice());
 
         let key_storage = StorageSecretKey::new(Some(encoded_sk.clone()), Some(salt));
-        key_storage.save().await?;
+        // key_storage.save().await?;
 
+        console::log!(format!("login, {:?}", encoded_sk));
         self.key_pair = Some(key_pair);
-        Ok(())
+        Ok(key_storage)
     }
 
     fn get_credential(&self, _site: &str) -> Result<(String, String), PortError> {
@@ -371,29 +384,48 @@ async fn handle_app_request(
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {
             version: VERSION.to_string(),
         },
-        AppRequestPayload::GetStatus => match app.take().get_status().await {
-            Ok(is_logged_in) => AppResponsePayload::Status { is_logged_in },
+        AppRequestPayload::GetStatus => match StorageSecretKey::load().await {
+            Ok(sk) => match app.borrow().get_status(sk) {
+                Ok((is_logged_in, is_unlocked)) => AppResponsePayload::Status {
+                    is_logged_in,
+                    is_unlocked,
+                },
+                Err(_) => {
+                    return None;
+                }
+            },
             Err(_) => {
                 return None;
             }
         },
-        AppRequestPayload::Unlock { device_password } => {
-            match app.take().unlock(device_password).await {
+        AppRequestPayload::Unlock { device_password } => match StorageSecretKey::load().await {
+            Ok(sk) => match app.borrow_mut().unlock(sk, device_password) {
                 Ok(()) => AppResponsePayload::Auth { error: None },
+                Err(err) => AppResponsePayload::Auth {
+                    error: Some(err.to_string()),
+                },
+            },
+            Err(err) => AppResponsePayload::Auth {
+                error: Some(err.to_string()),
+            },
+        },
+        AppRequestPayload::Login {
+            seed_phrase,
+            device_password,
+        } => {
+            let result = { app.borrow_mut().login(seed_phrase, device_password) };
+            match result {
+                Ok(key_storage) => match key_storage.save().await {
+                    Ok(()) => AppResponsePayload::Auth { error: None },
+                    Err(err) => AppResponsePayload::Auth {
+                        error: Some(err.to_string()),
+                    },
+                },
                 Err(err) => AppResponsePayload::Auth {
                     error: Some(err.to_string()),
                 },
             }
         }
-        AppRequestPayload::Login {
-            seed_phrase,
-            device_password,
-        } => match app.take().login(seed_phrase, device_password).await {
-            Ok(()) => AppResponsePayload::Auth { error: None },
-            Err(err) => AppResponsePayload::Auth {
-                error: Some(err.to_string()),
-            },
-        },
         AppRequestPayload::GetCredential {
             site: _site,
             username: _username,

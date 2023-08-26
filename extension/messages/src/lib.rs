@@ -84,10 +84,20 @@ pub type AppRequest = Request<AppRequestPayload>;
 /// App response message.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AppResponsePayload {
-    Status { is_logged_in: bool },
-    OptionsInfo { version: String },
-    Auth { error: Option<String> },
-    Credential { username: String, password: String },
+    Status {
+        is_logged_in: bool,
+        is_unlocked: bool,
+    },
+    OptionsInfo {
+        version: String,
+    },
+    Auth {
+        error: Option<String>,
+    },
+    Credential {
+        username: String,
+        password: String,
+    },
 }
 
 pub type AppResponse = Response<AppResponsePayload>;

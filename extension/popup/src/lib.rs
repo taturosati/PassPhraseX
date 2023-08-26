@@ -66,8 +66,13 @@ fn App() -> Html {
                 let current_page = current_page.clone();
 
                 move |response| match response {
-                    Ok(AppResponsePayload::Status { is_logged_in }) => {
-                        if is_logged_in {
+                    Ok(AppResponsePayload::Status {
+                        is_logged_in,
+                        is_unlocked,
+                    }) => {
+                        if is_unlocked {
+                            current_page.set(Pages::Unlocked);
+                        } else if is_logged_in {
                             current_page.set(Pages::Unlock);
                         } else {
                             current_page.set(Pages::Login);
