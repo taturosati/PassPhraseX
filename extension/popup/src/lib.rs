@@ -6,7 +6,7 @@ use gloo_console as console;
 use wasm_bindgen::prelude::*;
 
 use crate::api::app_request;
-use crate::pages::{PageProps, Pages};
+use crate::pages::{PageProps, Pages, Render};
 use messages::{AppRequestPayload, AppResponsePayload};
 use yew::prelude::*;
 

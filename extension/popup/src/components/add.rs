@@ -3,15 +3,11 @@ use web_sys::HtmlInputElement;
 use yew::{function_component, html, use_node_ref, Callback, Html, Properties};
 
 use crate::api::app_request;
+use crate::pages::unlocked::{SectionProps, Sections};
 use gloo_console as console;
 
-#[derive(Properties, PartialEq)]
-pub struct Props {
-    pub cb: Callback<()>,
-}
-
 #[function_component]
-pub fn Add(props: &Props) -> Html {
+pub fn Add(props: &SectionProps) -> Html {
     let site_ref = use_node_ref();
     let username_ref = use_node_ref();
     let password_ref = use_node_ref();
@@ -20,7 +16,7 @@ pub fn Add(props: &Props) -> Html {
         let site_ref = site_ref.clone();
         let username_ref = username_ref.clone();
         let password_ref = password_ref.clone();
-        let cb = props.cb.clone();
+        let set_section = props.set_section.clone();
 
         move |_| {
             let input = site_ref.cast::<HtmlInputElement>();
@@ -46,10 +42,10 @@ pub fn Add(props: &Props) -> Html {
                 password,
             };
 
-            let cb = cb.clone();
+            let set_section = set_section.clone();
             app_request(payload, move |res| match res {
                 Ok(_) => {
-                    cb.emit(());
+                    set_section.emit(Sections::List);
                 }
                 Err(err) => {
                     console::error!("Error: {:?}", err);

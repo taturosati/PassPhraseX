@@ -1,55 +1,56 @@
 use crate::components::add::Add;
-use crate::pages::{PageProps, Pages};
-use messages::{AppRequestPayload, AppResponsePayload};
-use yew::{function_component, html, use_effect_with_deps, use_state, Callback, Html};
+use crate::components::nav::Nav;
+use crate::pages::{PageProps, Render};
+use yew::{function_component, html, use_state, Callback, Html, Properties};
+
+#[derive(Properties, PartialEq)]
+pub struct SectionProps {
+    pub set_section: Callback<Sections>,
+}
+
+pub enum Sections {
+    Add,
+    List,
+    Edit,
+}
+
+impl Render<SectionProps> for Sections {
+    fn render(&self, props: &SectionProps) -> Html {
+        let set_section = props.set_section.clone();
+        match self {
+            Sections::Add => {
+                html!(<Add {set_section}/>)
+            }
+            Sections::List => {
+                html!(<div>{"List"}</div>)
+            }
+            Sections::Edit => {
+                html!(<div>{"Edit"}</div>)
+            }
+        }
+    }
+}
 
 #[function_component]
 pub fn UnlockedApp(props: &PageProps) -> Html {
-    let on_logout = Callback::from({
-        let set_page = props.set_page.clone();
-        move |_| set_page.emit(Pages::Login)
-    });
+    let section = use_state(|| Sections::List);
 
-    let cred = use_state(|| ("".to_string(), "".to_string()));
-
-    use_effect_with_deps(
-        {
-            let cred = cred.clone();
-
-            move |_| {
-                let payload = AppRequestPayload::GetCredential {
-                    site: "test.com".to_string(),
-                    username: None,
-                };
-                crate::api::app_request(payload, move |response| match response {
-                    Ok(AppResponsePayload::Credential { username, password }) => {
-                        cred.set((username, password));
-                    }
-                    Ok(_) => {
-                        cred.set(("error".to_string(), "unknown response".to_string()));
-                    }
-                    Err(err) => {
-                        cred.set(("error".to_string(), err));
-                    }
-                });
-            }
-        },
-        (),
-    );
-
-    let cb = {
-        let cred = cred.clone();
-        move |_| {
-            cred.set(("success".to_string(), "".to_string()));
-        }
+    let set_section = {
+        let section = section.clone();
+        Callback::from(move |new_section| {
+            section.set(new_section);
+        })
     };
+
+    let child = section.render(&SectionProps {
+        set_section: set_section.clone(),
+    });
 
     html! {
         <div>
             <h1>{ "PassPhraseX" }</h1>
-            <div>{format!("Username: {}, Password: {}", cred.0, cred.1)}</div>
-            <Add {cb}/>
-            <button onclick={on_logout}>{"Logout"}</button>
+            {child}
+            <Nav {set_section}/>
         </div>
     }
 }

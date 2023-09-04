@@ -16,12 +16,12 @@ pub enum Pages {
     Error,
 }
 
-trait Render {
-    fn render(&self, props: &PageProps) -> Html;
+pub trait Render<T: Properties> {
+    fn render(&self, props: &T) -> Html;
 }
 
-impl Pages {
-    pub fn render(&self, props: &PageProps) -> Html {
+impl Render<PageProps> for Pages {
+    fn render(&self, props: &PageProps) -> Html {
         let set_page = props.set_page.clone();
         match self {
             Pages::Login => {
