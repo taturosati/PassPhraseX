@@ -1,59 +1,14 @@
 mod api;
 mod components;
+mod pages;
 
 use gloo_console as console;
 use wasm_bindgen::prelude::*;
 
-use crate::components::login::Login;
-use crate::components::unlock::Unlock;
-
 use crate::api::app_request;
+use crate::pages::{PageProps, Pages};
 use messages::{AppRequestPayload, AppResponsePayload};
 use yew::prelude::*;
-
-#[derive(PartialEq)]
-pub enum Pages {
-    Login,
-    Unlock,
-    Unlocked,
-}
-
-#[derive(Properties, PartialEq)]
-struct Props {
-    set_page: Callback<Pages>,
-}
-
-#[function_component]
-fn LoggedOutApp(props: &Props) -> Html {
-    let on_login = Callback::from({
-        let set_page = props.set_page.clone();
-        move |_| set_page.emit(Pages::Unlocked)
-    });
-
-    html! {
-        <div>
-            <h1>{ "PassPhraseX" }</h1>
-            <Login {on_login}/>
-        </div>
-    }
-}
-
-#[function_component]
-fn LockedApp(props: &Props) -> Html {
-    let on_unlock = Callback::from({
-        let set_page = props.set_page.clone();
-        move |_| {
-            set_page.emit(Pages::Unlocked);
-        }
-    });
-
-    html! {
-        <div>
-            <h1>{ "PassPhraseX" }</h1>
-            <Unlock {on_unlock} />
-        </div>
-    }
-}
 
 #[function_component]
 fn App() -> Html {
@@ -79,10 +34,12 @@ fn App() -> Html {
                         }
                     }
                     Err(err) => {
-                        // TODO: Error page
                         console::error!("Error: {:?}", err);
+                        current_page.set(Pages::Error);
                     }
-                    _ => {}
+                    _ => {
+                        current_page.set(Pages::Error);
+                    }
                 }
             };
 
@@ -101,17 +58,7 @@ fn App() -> Html {
         })
     };
 
-    match *current_page {
-        Pages::Login => {
-            html!(<LoggedOutApp {set_page}/>)
-        }
-        Pages::Unlock => {
-            html!(<LockedApp {set_page}/>)
-        }
-        Pages::Unlocked => {
-            html!(<div>{ "Unlocked" }</div>)
-        }
-    }
+    current_page.render(&PageProps { set_page })
 }
 
 #[wasm_bindgen]

@@ -5,6 +5,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use gloo_console as console;
 use gloo_utils::format::JsValueSerdeExt;
+use hex::ToHex;
 use js_sys::{Function, Object};
 use messages::{
     next_request_id, AppRequest, AppRequestPayload, AppResponse, AppResponsePayload, PortRequest,
@@ -18,6 +19,8 @@ use wasm_bindgen::{prelude::*, JsCast};
 use crate::storage::StorageSecretKey;
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use passphrasex_common::crypto::symmetric::{decrypt_data, encrypt_data, generate_salt, hash};
+use passphrasex_common::model::password::Password;
+use passphrasex_common::model::CredentialsMap;
 use web_extensions_sys::{chrome, Port, Tab, TabChangeInfo};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -98,11 +101,16 @@ impl ConnectedPorts {
     }
 }
 
+struct AppData {
+    key_pair: KeyPair,
+    credentials_map: CredentialsMap,
+}
+
 #[derive(Default)]
 struct App {
     last_request_id: RequestId,
     connected_ports: ConnectedPorts,
-    key_pair: Option<KeyPair>,
+    app_data: Option<AppData>,
 }
 
 impl App {
@@ -129,7 +137,7 @@ impl App {
     }
 
     fn get_status(&self, sk: StorageSecretKey) -> anyhow::Result<(bool, bool)> {
-        if self.key_pair.is_some() {
+        if self.app_data.is_some() {
             // Logged in & unlocked
             return Ok((true, true));
         }
@@ -154,8 +162,18 @@ impl App {
         let mut content: [u8; 32] = [0; 32];
         content.copy_from_slice(&sk[..32]);
 
-        console::log!(format!("unlock, {:?}", content));
-        self.key_pair = Some(KeyPair::from_sk(content));
+        let key_pair = KeyPair::from_sk(content);
+        match self.app_data.as_mut() {
+            Some(app_data) => {
+                app_data.key_pair = key_pair;
+            }
+            None => {
+                self.app_data = Some(AppData {
+                    key_pair,
+                    credentials_map: CredentialsMap::new(),
+                });
+            }
+        }
 
         Ok(())
     }
@@ -175,15 +193,69 @@ impl App {
         let encoded_sk = hex::encode(enc_sk.as_slice());
 
         let key_storage = StorageSecretKey::new(Some(encoded_sk.clone()), Some(salt));
-        // key_storage.save().await?;
 
-        console::log!(format!("login, {:?}", encoded_sk));
-        self.key_pair = Some(key_pair);
+        self.app_data = Some(AppData {
+            key_pair,
+            credentials_map: CredentialsMap::new(),
+        });
+
         Ok(key_storage)
     }
 
-    fn get_credential(&self, _site: &str) -> Result<(String, String), PortError> {
-        Ok(("username".to_string(), "password".to_string()))
+    fn get_credential(
+        &self,
+        site: String,
+        username: Option<String>,
+    ) -> anyhow::Result<(String, String)> {
+        let app_data = self.app_data.as_ref().ok_or(anyhow!("Not Logged In"))?;
+        let credentials = &app_data.credentials_map;
+        match credentials.get(&site) {
+            Some(passwords) => match username {
+                Some(username) => {
+                    let id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
+                    let credential = passwords.get(&id).ok_or(anyhow!("Password not found"))?;
+                    let credential = credential.decrypt(&app_data.key_pair);
+                    Ok((credential.username, credential.password))
+                }
+                None => {
+                    let result: Vec<Password> = passwords
+                        .iter()
+                        .map(|(_, password)| password.decrypt(&app_data.key_pair))
+                        .collect();
+
+                    let result = result.first().ok_or(anyhow!("No passwords found"))?;
+                    Ok((result.username.clone(), result.password.clone()))
+                }
+            },
+            None => Err(anyhow!("No passwords found")),
+        }
+    }
+
+    fn add_credential(
+        &mut self,
+        site: String,
+        username: String,
+        password: String,
+    ) -> anyhow::Result<()> {
+        let app_data = self.app_data.as_mut().ok_or(anyhow!("Not Logged In"))?;
+        let password_id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
+        let user_id = app_data.key_pair.get_pk();
+        let password = Password {
+            _id: password_id.clone(),
+            user_id,
+            site: site.clone(),
+            username,
+            password,
+        };
+        let password = password.encrypt(&app_data.key_pair);
+        app_data
+            .credentials_map
+            .entry(site)
+            .or_insert(HashMap::new())
+            .insert(password_id, password);
+
+        // TODO: Save to API & Local Storage
+        Ok(())
     }
 }
 
@@ -426,18 +498,31 @@ async fn handle_app_request(
                 },
             }
         }
-        AppRequestPayload::GetCredential {
-            site: _site,
-            username: _username,
-        } => AppResponsePayload::Credential {
-            username: "username".to_string(),
-            password: "password".to_string(),
-        },
+        AppRequestPayload::GetCredential { site, username } => {
+            match app.borrow().get_credential(site, username) {
+                Ok((username, password)) => AppResponsePayload::Credential { username, password },
+                Err(err) => {
+                    console::error!("Failed to get credential", err.to_string());
+                    return None; // TODO: Error
+                }
+            }
+        }
         AppRequestPayload::AddCredential {
-            site: _site,
+            site,
             username,
             password,
-        } => AppResponsePayload::Credential { username, password },
+        } => {
+            match app
+                .borrow_mut()
+                .add_credential(site, username.clone(), password.clone())
+            {
+                Ok(()) => AppResponsePayload::Credential { username, password },
+                Err(err) => {
+                    console::error!("Failed to add credential", err.to_string());
+                    return None; // TODO: Error
+                }
+            }
+        }
     };
 
     Response {
@@ -467,7 +552,7 @@ fn handle_port_request(
     let Request { header, payload } = request;
     let payload: Option<_> = match payload {
         PortRequestPayload::GetCredential { site } => {
-            let (username, password) = app.borrow().get_credential(&site).ok()?;
+            let (username, password) = app.borrow().get_credential(site, None).ok()?;
             PortResponsePayload::Credential { username, password }.into()
         }
     };
