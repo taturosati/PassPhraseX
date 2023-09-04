@@ -3,7 +3,7 @@ use yew::{function_component, html, Callback, Html};
 
 #[function_component]
 pub fn Nav(props: &SectionProps) -> Html {
-    let set_section = props.set_section.clone();
+    let set_section = &props.set_section;
 
     let set_section_add = {
         let set_section = set_section.clone();

@@ -5,12 +5,11 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use gloo_console as console;
 use gloo_utils::format::JsValueSerdeExt;
-use hex::ToHex;
 use js_sys::{Function, Object};
 use messages::{
-    next_request_id, AppRequest, AppRequestPayload, AppResponse, AppResponsePayload, PortRequest,
-    PortRequestPayload, PortResponse, PortResponsePayload, Request, RequestId, Response,
-    INITIAL_REQUEST_ID,
+    next_request_id, AppRequest, AppRequestPayload, AppResponse, AppResponsePayload, Credential,
+    PortRequest, PortRequestPayload, PortResponse, PortResponsePayload, Request, RequestId,
+    Response, INITIAL_REQUEST_ID,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -192,7 +191,7 @@ impl App {
         let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
         let encoded_sk = hex::encode(enc_sk.as_slice());
 
-        let key_storage = StorageSecretKey::new(Some(encoded_sk.clone()), Some(salt));
+        let key_storage = StorageSecretKey::new(Some(encoded_sk), Some(salt));
 
         self.app_data = Some(AppData {
             key_pair,
@@ -229,6 +228,27 @@ impl App {
             },
             None => Err(anyhow!("No passwords found")),
         }
+    }
+
+    fn list_credentials(&self) -> anyhow::Result<Vec<Credential>> {
+        let app_data = self.app_data.as_ref().ok_or(anyhow!("Not Logged In"))?;
+        let credentials = &app_data.credentials_map;
+        let result: Vec<Credential> = credentials
+            .iter()
+            .flat_map(|(_, creds)| {
+                creds
+                    .iter()
+                    .map(|(_, password)| password.decrypt(&app_data.key_pair))
+                    .collect::<Vec<Password>>()
+            })
+            .map(|cred| Credential {
+                site: cred.site.clone(),
+                username: cred.username.clone(),
+                password: cred.password,
+            })
+            .collect();
+
+        Ok(result)
     }
 
     fn add_credential(
@@ -519,6 +539,15 @@ async fn handle_app_request(
                 Ok(()) => AppResponsePayload::Credential { username, password },
                 Err(err) => {
                     console::error!("Failed to add credential", err.to_string());
+                    return None; // TODO: Error
+                }
+            }
+        }
+        AppRequestPayload::ListCredentials {} => {
+            match app.borrow().list_credentials() {
+                Ok(credentials) => AppResponsePayload::Credentials(credentials),
+                Err(err) => {
+                    console::error!("Failed to list credentials", err.to_string());
                     return None; // TODO: Error
                 }
             }

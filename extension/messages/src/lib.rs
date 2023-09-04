@@ -68,6 +68,7 @@ pub enum AppRequestPayload {
         seed_phrase: String,
         device_password: String,
     },
+    ListCredentials {},
     GetCredential {
         site: String,
         username: Option<String>,
@@ -80,6 +81,13 @@ pub enum AppRequestPayload {
 }
 
 pub type AppRequest = Request<AppRequestPayload>;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Credential {
+    pub site: String,
+    pub username: String,
+    pub password: String,
+}
 
 /// App response message.
 #[derive(Debug, Serialize, Deserialize)]
@@ -98,6 +106,7 @@ pub enum AppResponsePayload {
         username: String,
         password: String,
     },
+    Credentials(Vec<Credential>),
 }
 
 pub type AppResponse = Response<AppResponsePayload>;

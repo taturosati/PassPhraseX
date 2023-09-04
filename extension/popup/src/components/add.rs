@@ -1,6 +1,6 @@
 use messages::AppRequestPayload;
 use web_sys::HtmlInputElement;
-use yew::{function_component, html, use_node_ref, Callback, Html, Properties};
+use yew::{function_component, html, use_node_ref, Html};
 
 use crate::api::app_request;
 use crate::pages::unlocked::{SectionProps, Sections};

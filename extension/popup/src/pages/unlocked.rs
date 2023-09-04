@@ -1,4 +1,5 @@
 use crate::components::add::Add;
+use crate::components::list::List;
 use crate::components::nav::Nav;
 use crate::pages::{PageProps, Render};
 use yew::{function_component, html, use_state, Callback, Html, Properties};
@@ -22,7 +23,7 @@ impl Render<SectionProps> for Sections {
                 html!(<Add {set_section}/>)
             }
             Sections::List => {
-                html!(<div>{"List"}</div>)
+                html!(<List {set_section} />)
             }
             Sections::Edit => {
                 html!(<div>{"Edit"}</div>)
@@ -32,7 +33,7 @@ impl Render<SectionProps> for Sections {
 }
 
 #[function_component]
-pub fn UnlockedApp(props: &PageProps) -> Html {
+pub fn UnlockedApp(_props: &PageProps) -> Html {
     let section = use_state(|| Sections::List);
 
     let set_section = {
