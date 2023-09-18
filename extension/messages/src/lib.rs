@@ -78,6 +78,15 @@ pub enum AppRequestPayload {
         username: String,
         password: String,
     },
+    EditCredential {
+        site: String,
+        password_id: String,
+        password: String,
+    },
+    DeleteCredential {
+        site: String,
+        password_id: String,
+    },
 }
 
 pub type AppRequest = Request<AppRequestPayload>;
@@ -92,6 +101,10 @@ pub struct Credential {
 /// App response message.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum AppResponsePayload {
+    Error {
+        message: String,
+    },
+    Ok,
     Status {
         is_logged_in: bool,
         is_unlocked: bool,

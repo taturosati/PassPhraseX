@@ -1,5 +1,8 @@
 use anyhow::anyhow;
+use std::cell::RefCell;
+use std::rc::Rc;
 // use gloo_console as console;
+use crate::app::App;
 use gloo_utils::format::JsValueSerdeExt;
 use js_sys::Object;
 use passphrasex_common::api::Api;
@@ -134,4 +137,18 @@ async fn load_from_local_storage<T: for<'a> Deserialize<'a>>(keys: &[&str]) -> a
     js_value
         .into_serde()
         .map_err(|err| anyhow!("Error deserializing local storage: {:?}", err))
+}
+
+pub async fn execute_storage_credentials_action(
+    app: &Rc<RefCell<App>>,
+    action: StorageCredentialsAction,
+) -> anyhow::Result<()> {
+    let api = match app.borrow().get_api() {
+        Ok(api) => api,
+        Err(err) => {
+            return Err(anyhow!("Error getting API: {:?}", err));
+        }
+    };
+
+    action.execute(&api).await
 }
