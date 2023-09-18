@@ -15,7 +15,7 @@ use serde::Serialize;
 use thiserror::Error;
 use wasm_bindgen::{prelude::*, JsCast};
 
-use crate::storage::{StorageCredentialsAction, StorageSecretKey};
+use crate::storage::{StorageCredentials, StorageCredentialsAction, StorageSecretKey};
 use passphrasex_common::api::Api;
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use passphrasex_common::crypto::symmetric::{decrypt_data, encrypt_data, generate_salt, hash};
@@ -104,6 +104,7 @@ impl ConnectedPorts {
 struct UnlockedAppData {
     key_pair: KeyPair,
     credentials_map: CredentialsMap,
+    api: Api,
 }
 
 #[derive(Default)]
@@ -115,9 +116,23 @@ enum AppData {
 
 impl AppData {
     fn new(key_pair: KeyPair) -> Self {
+        let api = Api::new(key_pair.clone());
+        let credentials_map = CredentialsMap::new();
+
         Self::Unlocked(UnlockedAppData {
             key_pair,
-            credentials_map: CredentialsMap::new(),
+            credentials_map,
+            api,
+        })
+    }
+
+    fn with_data(key_pair: KeyPair, credentials_map: CredentialsMap) -> Self {
+        let api = Api::new(key_pair.clone());
+
+        Self::Unlocked(UnlockedAppData {
+            key_pair,
+            credentials_map,
+            api,
         })
     }
 }
@@ -162,7 +177,12 @@ impl App {
         }
     }
 
-    fn unlock(&mut self, sk: StorageSecretKey, device_password: String) -> anyhow::Result<()> {
+    fn unlock(
+        &mut self,
+        sk: StorageSecretKey,
+        creds: StorageCredentials,
+        device_password: String,
+    ) -> anyhow::Result<()> {
         let salt = sk.salt.ok_or(anyhow!("No salt found"))?;
         let sk = sk.secret_key.ok_or(anyhow!("No sk found"))?;
         let sk = hex::decode(sk).map_err(|err| anyhow!("Unable to decode sk: {:?}", err))?;
@@ -175,10 +195,11 @@ impl App {
         content.copy_from_slice(&sk[..32]);
 
         let key_pair = KeyPair::from_sk(content);
+        let credentials_map = creds.credentials;
 
         match self.app_data {
             AppData::Locked => {
-                self.app_data = AppData::new(key_pair);
+                self.app_data = AppData::with_data(key_pair, credentials_map);
             }
             AppData::Unlocked { .. } => {
                 return Err(anyhow!("Already unlocked"));
@@ -242,16 +263,14 @@ impl App {
     fn list_credentials(&self) -> anyhow::Result<Vec<Credential>> {
         match &self.app_data {
             AppData::Locked => Err(anyhow!("Not Logged In")),
-            AppData::Unlocked(UnlockedAppData {
-                key_pair,
-                credentials_map,
-            }) => {
-                let result: Vec<Credential> = credentials_map
+            AppData::Unlocked(app_data) => {
+                let result: Vec<Credential> = app_data
+                    .credentials_map
                     .iter()
                     .flat_map(|(_, creds)| {
                         creds
                             .iter()
-                            .map(|(_, password)| password.decrypt(key_pair))
+                            .map(|(_, password)| password.decrypt(&app_data.key_pair))
                             .collect::<Vec<Password>>()
                     })
                     .map(|cred| Credential {
@@ -511,8 +530,13 @@ async fn handle_app_request(
             }
         },
         AppRequestPayload::Unlock { device_password } => match StorageSecretKey::load().await {
-            Ok(sk) => match app.borrow_mut().unlock(sk, device_password) {
-                Ok(()) => AppResponsePayload::Auth { error: None },
+            Ok(sk) => match StorageCredentials::load().await {
+                Ok(creds) => match app.borrow_mut().unlock(sk, creds, device_password) {
+                    Ok(()) => AppResponsePayload::Auth { error: None },
+                    Err(err) => AppResponsePayload::Auth {
+                        error: Some(err.to_string()),
+                    },
+                },
                 Err(err) => AppResponsePayload::Auth {
                     error: Some(err.to_string()),
                 },
@@ -559,13 +583,12 @@ async fn handle_app_request(
 
             match result {
                 Ok(action) => {
-                    let key_pair = match &app.borrow().app_data {
+                    let api = match &app.borrow().app_data {
                         AppData::Locked => return None, // TODO: Error
-                        AppData::Unlocked(app_data) => app_data.key_pair.clone(),
-                    }; // TODO: Change this, save api in app_data
+                        AppData::Unlocked(app_data) => app_data.api.clone(),
+                    };
 
-                    let api = Api::new(key_pair.clone());
-                    if action.execute(api).await.is_err() {
+                    if action.execute(&api).await.is_err() {
                         return None; // TODO: Error
                     }
 

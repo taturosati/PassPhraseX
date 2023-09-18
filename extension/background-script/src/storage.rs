@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use gloo_console as console;
+// use gloo_console as console;
 use gloo_utils::format::JsValueSerdeExt;
 use js_sys::Object;
 use passphrasex_common::api::Api;
@@ -86,7 +86,7 @@ impl StorageCredentials {
 }
 
 impl StorageCredentialsAction {
-    pub async fn execute(self, api: Api) -> anyhow::Result<()> {
+    pub async fn execute(self, api: &Api) -> anyhow::Result<()> {
         match self {
             StorageCredentialsAction::Add(credentials, password) => {
                 api.add_password(password.user_id.clone(), password).await?;

@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::env;
 use time::SystemTime;
 
+#[derive(Clone)]
 pub struct Api {
     client: Client,
     base_url: Url,
