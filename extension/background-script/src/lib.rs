@@ -100,16 +100,32 @@ impl ConnectedPorts {
     }
 }
 
-struct AppData {
+struct UnlockedAppData {
     key_pair: KeyPair,
     credentials_map: CredentialsMap,
+}
+
+#[derive(Default)]
+enum AppData {
+    #[default]
+    Locked,
+    Unlocked(UnlockedAppData),
+}
+
+impl AppData {
+    fn new(key_pair: KeyPair) -> Self {
+        Self::Unlocked(UnlockedAppData {
+            key_pair,
+            credentials_map: CredentialsMap::new(),
+        })
+    }
 }
 
 #[derive(Default)]
 struct App {
     last_request_id: RequestId,
     connected_ports: ConnectedPorts,
-    app_data: Option<AppData>,
+    app_data: AppData,
 }
 
 impl App {
@@ -136,17 +152,13 @@ impl App {
     }
 
     fn get_status(&self, sk: StorageSecretKey) -> anyhow::Result<(bool, bool)> {
-        if self.app_data.is_some() {
-            // Logged in & unlocked
-            return Ok((true, true));
+        match self.app_data {
+            AppData::Locked => match sk.secret_key {
+                Some(_) => Ok((true, false)),
+                None => Ok((false, false)),
+            },
+            AppData::Unlocked { .. } => Ok((true, true)),
         }
-
-        if sk.secret_key.is_none() {
-            // Not logged in
-            return Ok((false, false));
-        }
-
-        Ok((true, false))
     }
 
     fn unlock(&mut self, sk: StorageSecretKey, device_password: String) -> anyhow::Result<()> {
@@ -162,15 +174,13 @@ impl App {
         content.copy_from_slice(&sk[..32]);
 
         let key_pair = KeyPair::from_sk(content);
-        match self.app_data.as_mut() {
-            Some(app_data) => {
-                app_data.key_pair = key_pair;
+
+        match self.app_data {
+            AppData::Locked => {
+                self.app_data = AppData::new(key_pair);
             }
-            None => {
-                self.app_data = Some(AppData {
-                    key_pair,
-                    credentials_map: CredentialsMap::new(),
-                });
+            AppData::Unlocked { .. } => {
+                return Err(anyhow!("Already unlocked"));
             }
         }
 
@@ -193,10 +203,7 @@ impl App {
 
         let key_storage = StorageSecretKey::new(Some(encoded_sk), Some(salt));
 
-        self.app_data = Some(AppData {
-            key_pair,
-            credentials_map: CredentialsMap::new(),
-        });
+        self.app_data = AppData::new(key_pair);
 
         Ok(key_storage)
     }
@@ -206,49 +213,56 @@ impl App {
         site: String,
         username: Option<String>,
     ) -> anyhow::Result<(String, String)> {
-        let app_data = self.app_data.as_ref().ok_or(anyhow!("Not Logged In"))?;
-        let credentials = &app_data.credentials_map;
-        match credentials.get(&site) {
-            Some(passwords) => match username {
-                Some(username) => {
-                    let id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
-                    let credential = passwords.get(&id).ok_or(anyhow!("Password not found"))?;
-                    let credential = credential.decrypt(&app_data.key_pair);
-                    Ok((credential.username, credential.password))
-                }
-                None => {
-                    let result: Vec<Password> = passwords
-                        .iter()
-                        .map(|(_, password)| password.decrypt(&app_data.key_pair))
-                        .collect();
+        match &self.app_data {
+            AppData::Locked => Err(anyhow!("Not Logged In")),
+            AppData::Unlocked(app_data) => match app_data.credentials_map.get(&site) {
+                Some(passwords) => match username {
+                    Some(username) => {
+                        let id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
+                        let credential = passwords.get(&id).ok_or(anyhow!("Password not found"))?;
+                        let credential = credential.decrypt(&app_data.key_pair);
+                        Ok((credential.username, credential.password))
+                    }
+                    None => {
+                        let result: Vec<Password> = passwords
+                            .iter()
+                            .map(|(_, password)| password.decrypt(&app_data.key_pair))
+                            .collect();
 
-                    let result = result.first().ok_or(anyhow!("No passwords found"))?;
-                    Ok((result.username.clone(), result.password.clone()))
-                }
+                        let result = result.first().ok_or(anyhow!("No passwords found"))?;
+                        Ok((result.username.clone(), result.password.clone()))
+                    }
+                },
+                None => Err(anyhow!("No passwords found")),
             },
-            None => Err(anyhow!("No passwords found")),
         }
     }
 
     fn list_credentials(&self) -> anyhow::Result<Vec<Credential>> {
-        let app_data = self.app_data.as_ref().ok_or(anyhow!("Not Logged In"))?;
-        let credentials = &app_data.credentials_map;
-        let result: Vec<Credential> = credentials
-            .iter()
-            .flat_map(|(_, creds)| {
-                creds
+        match &self.app_data {
+            AppData::Locked => Err(anyhow!("Not Logged In")),
+            AppData::Unlocked(UnlockedAppData {
+                key_pair,
+                credentials_map,
+            }) => {
+                let result: Vec<Credential> = credentials_map
                     .iter()
-                    .map(|(_, password)| password.decrypt(&app_data.key_pair))
-                    .collect::<Vec<Password>>()
-            })
-            .map(|cred| Credential {
-                site: cred.site.clone(),
-                username: cred.username.clone(),
-                password: cred.password,
-            })
-            .collect();
+                    .flat_map(|(_, creds)| {
+                        creds
+                            .iter()
+                            .map(|(_, password)| password.decrypt(key_pair))
+                            .collect::<Vec<Password>>()
+                    })
+                    .map(|cred| Credential {
+                        site: cred.site.clone(),
+                        username: cred.username.clone(),
+                        password: cred.password,
+                    })
+                    .collect();
 
-        Ok(result)
+                Ok(result)
+            }
+        }
     }
 
     fn add_credential(
@@ -257,25 +271,29 @@ impl App {
         username: String,
         password: String,
     ) -> anyhow::Result<()> {
-        let app_data = self.app_data.as_mut().ok_or(anyhow!("Not Logged In"))?;
-        let password_id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
-        let user_id = app_data.key_pair.get_pk();
-        let password = Password {
-            _id: password_id.clone(),
-            user_id,
-            site: site.clone(),
-            username,
-            password,
-        };
-        let password = password.encrypt(&app_data.key_pair);
-        app_data
-            .credentials_map
-            .entry(site)
-            .or_insert(HashMap::new())
-            .insert(password_id, password);
+        match &mut self.app_data {
+            AppData::Locked => Err(anyhow!("Not Logged In")),
+            AppData::Unlocked(app_data) => {
+                let password_id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
+                let user_id = app_data.key_pair.get_pk();
+                let password = Password {
+                    _id: password_id.clone(),
+                    user_id,
+                    site: site.clone(),
+                    username,
+                    password,
+                };
+                let password = password.encrypt(&app_data.key_pair);
+                app_data
+                    .credentials_map
+                    .entry(site)
+                    .or_insert(HashMap::new())
+                    .insert(password_id, password);
 
-        // TODO: Save to API & Local Storage
-        Ok(())
+                // TODO: Save to API & Local Storage
+                Ok(())
+            }
+        }
     }
 }
 
