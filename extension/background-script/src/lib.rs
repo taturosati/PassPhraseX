@@ -15,7 +15,8 @@ use serde::Serialize;
 use thiserror::Error;
 use wasm_bindgen::{prelude::*, JsCast};
 
-use crate::storage::StorageSecretKey;
+use crate::storage::{StorageCredentialsAction, StorageSecretKey};
+use passphrasex_common::api::Api;
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use passphrasex_common::crypto::symmetric::{decrypt_data, encrypt_data, generate_salt, hash};
 use passphrasex_common::model::password::Password;
@@ -270,7 +271,7 @@ impl App {
         site: String,
         username: String,
         password: String,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<StorageCredentialsAction> {
         match &mut self.app_data {
             AppData::Locked => Err(anyhow!("Not Logged In")),
             AppData::Unlocked(app_data) => {
@@ -288,10 +289,11 @@ impl App {
                     .credentials_map
                     .entry(site)
                     .or_insert(HashMap::new())
-                    .insert(password_id, password);
+                    .insert(password_id, password.clone());
 
-                // TODO: Save to API & Local Storage
-                Ok(())
+                let action =
+                    StorageCredentialsAction::Add(app_data.credentials_map.clone(), password);
+                Ok(action)
             }
         }
     }
@@ -550,11 +552,25 @@ async fn handle_app_request(
             username,
             password,
         } => {
-            match app
-                .borrow_mut()
-                .add_credential(site, username.clone(), password.clone())
-            {
-                Ok(()) => AppResponsePayload::Credential { username, password },
+            let result = {
+                app.borrow_mut()
+                    .add_credential(site, username.clone(), password.clone())
+            };
+
+            match result {
+                Ok(action) => {
+                    let key_pair = match &app.borrow().app_data {
+                        AppData::Locked => return None, // TODO: Error
+                        AppData::Unlocked(app_data) => app_data.key_pair.clone(),
+                    }; // TODO: Change this, save api in app_data
+
+                    let api = Api::new(key_pair.clone());
+                    if action.execute(api).await.is_err() {
+                        return None; // TODO: Error
+                    }
+
+                    AppResponsePayload::Credential { username, password }
+                }
                 Err(err) => {
                     console::error!("Failed to add credential", err.to_string());
                     return None; // TODO: Error

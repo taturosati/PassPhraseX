@@ -831,11 +831,13 @@ dependencies = [
  "bip32",
  "crypto_box",
  "getrandom",
+ "js-sys",
  "rand",
  "rand_core 0.6.4",
  "reqwest",
  "rust-argon2",
  "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]

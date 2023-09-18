@@ -1,3 +1,5 @@
+mod time;
+
 // Wrapper functions to call api
 use crate::crypto::asymmetric::KeyPair;
 use crate::model::password::Password;
@@ -5,7 +7,7 @@ use anyhow::format_err;
 use reqwest::{Client, Response, StatusCode, Url};
 use std::collections::HashMap;
 use std::env;
-use std::time::SystemTime;
+use time::SystemTime;
 
 pub struct Api {
     client: Client,
@@ -127,7 +129,7 @@ impl Api {
 
     fn auth_token(&self) -> String {
         let time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
+            .duration_since(time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
         self.key_pair.sign(&time.to_string()).to_string()
