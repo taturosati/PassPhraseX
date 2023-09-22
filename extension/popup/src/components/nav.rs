@@ -1,30 +1,26 @@
 use crate::pages::unlocked::{SectionProps, Sections};
+use material_yew::{MatTab, MatTabBar};
 use yew::{function_component, html, Callback, Html};
 
 #[function_component]
 pub fn Nav(props: &SectionProps) -> Html {
     let set_section = &props.set_section;
 
-    let set_section_add = {
+    let onactivated = {
         let set_section = set_section.clone();
-        Callback::from(move |_| set_section.emit(Sections::Add))
-    };
-
-    let set_section_list = {
-        let set_section = set_section.clone();
-        Callback::from(move |_| set_section.emit(Sections::List))
-    };
-
-    let set_section_edit = {
-        let set_section = set_section.clone();
-        Callback::from(move |_| set_section.emit(Sections::Edit))
+        Callback::from(move |index| match index {
+            0 => set_section.emit(Sections::Add),
+            1 => set_section.emit(Sections::List),
+            2 => set_section.emit(Sections::Edit),
+            _ => {}
+        })
     };
 
     html! {
-        <nav>
-            <button onclick={set_section_add}>{"Add"}</button>
-            <button onclick={set_section_list}>{"List"}</button>
-            <button onclick={set_section_edit}>{"Edit"}</button>
-        </nav>
+        <MatTabBar onactivated={onactivated}>
+            <MatTab label={"ADD"}></MatTab>
+            <MatTab label={"LIST"}></MatTab>
+            <MatTab label={"Edit"}></MatTab>
+        </MatTabBar>
     }
 }

@@ -49,9 +49,8 @@ pub fn UnlockedApp(_props: &PageProps) -> Html {
 
     html! {
         <div>
-            <h1>{ "PassPhraseX" }</h1>
-            {child}
             <Nav {set_section}/>
+            {child}
         </div>
     }
 }
