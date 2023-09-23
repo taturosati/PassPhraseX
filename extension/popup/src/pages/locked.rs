@@ -12,9 +12,6 @@ pub fn LockedApp(props: &PageProps) -> Html {
     });
 
     html! {
-        <div>
-            <h1>{ "PassPhraseX" }</h1>
-            <Unlock {on_unlock} />
-        </div>
+        <Unlock {on_unlock} />
     }
 }

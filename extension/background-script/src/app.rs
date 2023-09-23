@@ -1,6 +1,7 @@
 use crate::storage::{StorageCredentials, StorageCredentialsAction, StorageSecretKey};
 use crate::{ConnectedPorts, PortError, PortId};
 use anyhow::anyhow;
+use gloo_console as console;
 use messages::{next_request_id, Credential, RequestId};
 use passphrasex_common::api::Api;
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
@@ -100,6 +101,7 @@ impl App {
         creds: StorageCredentials,
         device_password: String,
     ) -> anyhow::Result<()> {
+        console::debug!("unlocking", device_password.clone());
         let salt = sk.salt.ok_or(anyhow!("No salt found"))?;
         let sk = sk.secret_key.ok_or(anyhow!("No sk found"))?;
         let sk = hex::decode(sk).map_err(|err| anyhow!("Unable to decode sk: {:?}", err))?;

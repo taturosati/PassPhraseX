@@ -1,7 +1,6 @@
 use crate::api::try_auth;
-use crate::components::input::Input;
+use crate::components::helpers::{button::Button, input::Input};
 use messages::AppRequestPayload;
-use wasm_bindgen::UnwrapThrowExt;
 use yew::{function_component, html, use_state, Callback, Html, Properties};
 
 #[derive(Properties, PartialEq)]
@@ -20,11 +19,8 @@ pub fn Unlock(props: &Props) -> Html {
 
         move |_| {
             let device_password = device_password.clone();
-            // let input = div_ref.cast::<HtmlInputElement>();
-            // let device_password = input.map(|input| input.value());
             let on_unlock = on_unlock.clone();
 
-            // if let Some(device_password) = device_password {
             try_unlock(device_password, move |payload: Option<String>| {
                 if payload.is_some() {
                     // TODO: ERROR
@@ -33,15 +29,13 @@ pub fn Unlock(props: &Props) -> Html {
 
                 on_unlock.emit(());
             });
-            // }
         }
     };
 
     html! {
         <div>
-            <h1>{ "Unlock" }</h1>
             <Input label="Device Password" value={device_password_state} />
-            <button {onclick}>{ "Unlock" }</button>
+            <Button {onclick} text="Unlock"></Button>
         </div>
     }
 }
