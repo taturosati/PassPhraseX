@@ -136,6 +136,7 @@ pub type PortRequest = Request<PortRequestPayload>;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PortResponsePayload {
     Credential { username: String, password: String },
+    Error(String),
 }
 
 pub type PortResponse = Response<PortResponsePayload>;

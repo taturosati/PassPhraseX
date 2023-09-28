@@ -1,9 +1,11 @@
 use gloo_utils::document;
 use gloo_utils::format::JsValueSerdeExt;
+
+use gloo_console as console;
 use messages::PortResponsePayload;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_extensions_sys::{chrome, Port};
-use web_sys::Element;
+use web_sys::{window, Element};
 
 #[wasm_bindgen]
 pub fn start() {
@@ -28,18 +30,54 @@ pub fn start() {
                     .set_attribute("value", password)
                     .expect("Failed to set password");
             }
+            _ => {}
         }
     };
+
     let closure: Closure<dyn Fn(JsValue)> = Closure::new(on_message);
     let callback = closure.as_ref().unchecked_ref();
     port.on_message().add_listener(callback);
     closure.forget();
 
-    let payload = messages::PortRequestPayload::GetCredential {
-        site: "https://www.google.com".to_string(),
-    };
-    let msg = JsValue::from_serde(&messages::Request::new(payload)).unwrap();
-    port.post_message(&msg);
+    // let site = window()
+    //     .as_ref()
+    //     .unwrap()
+    //     .location()
+    //     .href()
+    //     .unwrap()
+    //     .replace("https://", "")
+    //     .replace("http://", "")
+    //     .replace("www.", "")
+    //     .split("/")
+    //     .next()
+    //     .unwrap()
+    //     .to_string();
+
+    if let Some(site) = get_site() {
+        let payload = messages::PortRequestPayload::GetCredential { site };
+        let msg = JsValue::from_serde(&messages::Request::new(payload)).unwrap();
+        port.post_message(&msg);
+    }
+}
+
+fn get_site() -> Option<String> {
+    match window().as_ref() {
+        Some(window) => match window.location().href() {
+            Ok(href) => {
+                let href = href
+                    .replace("https://", "")
+                    .replace("http://", "")
+                    .replace("www.", "");
+
+                match href.split("/").next() {
+                    Some(site) => Some(site.to_string()),
+                    None => None,
+                }
+            }
+            Err(_) => None,
+        },
+        None => None,
+    }
 }
 
 fn get_inputs() -> Option<(Element, Element)> {

@@ -161,7 +161,7 @@ fn on_message(
             }
         });
 
-        true
+        true // Need to return true to be able to use async stuff
     }
 }
 
@@ -209,7 +209,7 @@ fn on_connect_port(app: &Rc<RefCell<App>>, port: Port) {
     closure.forget();
 }
 
-fn on_port_message(app: &Rc<RefCell<App>>, port_id: PortId, request: JsValue) {
+fn on_port_message(app: &Rc<RefCell<App>>, port_id: PortId, request: JsValue) -> bool {
     console::debug!("Received request message on port", port_id, &request);
     let request_id = match app.borrow_mut().next_port_request_id(port_id) {
         Ok(request_id) => request_id,
@@ -220,7 +220,7 @@ fn on_port_message(app: &Rc<RefCell<App>>, port_id: PortId, request: JsValue) {
                 request,
                 err.to_string()
             );
-            return;
+            return true;
         }
     };
     if let Some(response) = on_port_request(app, port_id, request_id, request) {
@@ -233,6 +233,8 @@ fn on_port_message(app: &Rc<RefCell<App>>, port_id: PortId, request: JsValue) {
             );
         }
     }
+
+    true // Need to return true to be able to use async stuff
 }
 
 async fn on_request(
@@ -470,20 +472,25 @@ fn handle_port_request(
     _port_id: PortId,
     request_id: RequestId,
     request: PortRequest,
-) -> Option<PortResponse> {
+) -> PortResponse {
     let Request { header, payload } = request;
-    let payload: Option<_> = match payload {
+    let payload = match payload {
         PortRequestPayload::GetCredential { site } => {
-            let (username, password) = app.borrow().get_credential(site, None).ok()?;
-            PortResponsePayload::Credential { username, password }.into()
+            match app.borrow().get_credential(site, None) {
+                Ok((username, password)) => PortResponsePayload::Credential { username, password },
+                Err(err) => {
+                    console::error!("Failed to get credential", err.to_string());
+                    PortResponsePayload::Error(err.to_string())
+                }
+            }
         }
     };
     // The started response might be posted after the first stream item response
     // or even after the finished response that are all generated asynchronously!
-    payload.map(|payload| Response {
+    Response {
         header: header.into_response(request_id),
         payload,
-    })
+    }
 }
 
 // https://developer.chrome.com/docs/extensions/reference/scripting/#type-CSSInjection
