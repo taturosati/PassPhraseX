@@ -193,6 +193,7 @@ impl App {
                             .collect::<Vec<Password>>()
                     })
                     .map(|cred| Credential {
+                        id: cred._id.clone(),
                         site: cred.site.clone(),
                         username: cred.username.clone(),
                         password: cred.password,
@@ -236,7 +237,7 @@ impl App {
         }
     }
 
-    pub fn _edit_password(
+    pub fn edit_credential(
         &mut self,
         site: String,
         password_id: String,
@@ -245,12 +246,13 @@ impl App {
         match &mut self.app_data {
             AppData::Locked => Err(anyhow!("Not Logged In")),
             AppData::Unlocked(app_data) => {
-                let password = app_data
+                let mut password = app_data
                     .credentials_map
                     .get_mut(&site)
                     .ok_or(anyhow!("No site found"))?
                     .get_mut(&password_id)
-                    .ok_or(anyhow!("No password found"))?;
+                    .ok_or(anyhow!("No password found"))?
+                    .decrypt(&app_data.key_pair);
 
                 password.password = new_password;
                 let password = password.encrypt(&app_data.key_pair);

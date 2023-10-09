@@ -91,8 +91,9 @@ pub enum AppRequestPayload {
 
 pub type AppRequest = Request<AppRequestPayload>;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Credential {
+    pub id: String,
     pub site: String,
     pub username: String,
     pub password: String,

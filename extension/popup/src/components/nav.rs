@@ -12,7 +12,7 @@ pub fn Nav(props: &SectionProps) -> Html {
         <ul class={classes!("mb-2", "flex", "list-none", "flex-row", "flex-wrap", "border-b-0", "pl-0")} role="tablist">
             <Tab section={section.clone()} this_section={Sections::List} text="List" />
             <Tab section={section.clone()} this_section={Sections::Add} text="Add" />
-            <Tab section={section.clone()} this_section={Sections::Edit} text="Edit" />
+            // <Tab section={section.clone()} this_section={Sections::Edit} text="Edit" />
         </ul>
     }
 }

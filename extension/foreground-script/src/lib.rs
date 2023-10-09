@@ -39,20 +39,6 @@ pub fn start() {
     port.on_message().add_listener(callback);
     closure.forget();
 
-    // let site = window()
-    //     .as_ref()
-    //     .unwrap()
-    //     .location()
-    //     .href()
-    //     .unwrap()
-    //     .replace("https://", "")
-    //     .replace("http://", "")
-    //     .replace("www.", "")
-    //     .split("/")
-    //     .next()
-    //     .unwrap()
-    //     .to_string();
-
     if let Some(site) = get_site() {
         let payload = messages::PortRequestPayload::GetCredential { site };
         let msg = JsValue::from_serde(&messages::Request::new(payload)).unwrap();

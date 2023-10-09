@@ -1,7 +1,9 @@
 use crate::components::add::Add;
+use crate::components::edit::Edit;
 use crate::components::list::List;
 use crate::components::nav::Nav;
 use crate::pages::{PageProps, Render};
+use messages::Credential;
 use yew::{function_component, html, use_state, Html, Properties, UseStateHandle};
 
 #[derive(Properties, PartialEq)]
@@ -13,7 +15,7 @@ pub struct SectionProps {
 pub enum Sections {
     Add,
     List,
-    Edit,
+    Edit(Credential),
 }
 
 impl Render<SectionProps> for Sections {
@@ -26,8 +28,8 @@ impl Render<SectionProps> for Sections {
             Sections::List => {
                 html!(<List {section} />)
             }
-            Sections::Edit => {
-                html!(<div>{"Edit"}</div>)
+            Sections::Edit(cred) => {
+                html!(<Edit {section} credential={cred.clone()} />)
             }
         }
     }

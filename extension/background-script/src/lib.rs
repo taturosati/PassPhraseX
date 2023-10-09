@@ -395,7 +395,7 @@ async fn handle_app_request(
         } => {
             let result = {
                 app.borrow_mut()
-                    ._edit_password(site, password_id.clone(), password.clone())
+                    .edit_credential(site, password_id.clone(), password.clone())
             };
 
             match result {
