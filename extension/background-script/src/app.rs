@@ -269,7 +269,7 @@ impl App {
         }
     }
 
-    pub fn _delete_password(
+    pub fn delete_credential(
         &mut self,
         site: String,
         password_id: String,

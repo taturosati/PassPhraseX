@@ -416,7 +416,7 @@ async fn handle_app_request(
             }
         }
         AppRequestPayload::DeleteCredential { site, password_id } => {
-            let result = { app.borrow_mut()._delete_password(site, password_id) };
+            let result = { app.borrow_mut().delete_credential(site, password_id) };
 
             match result {
                 Ok(action) => {

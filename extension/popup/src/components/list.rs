@@ -9,9 +9,21 @@ use gloo_console as console;
 pub fn List(props: &SectionProps) -> Html {
     let credentials = use_state(Vec::new);
     let section = props.section.clone();
-    let set_section = Callback::from(move |new_section| {
-        section.set(new_section);
+
+    let counter = use_state(|| 0);
+
+    let set_section = Callback::from({
+        let counter = counter.clone();
+
+        move |new_section| {
+            if new_section == Sections::List {
+                counter.set(*counter + 1);
+            } else {
+                section.set(new_section);
+            }
+        }
     });
+
     use_effect_with_deps(
         {
             let credentials = credentials.clone();
@@ -33,8 +45,9 @@ pub fn List(props: &SectionProps) -> Html {
                 });
             }
         },
-        (),
+        counter,
     );
+
     html! {
         <table class="table-auto w-full">
             <tbody>
@@ -73,15 +86,29 @@ fn Credential(props: &CredentialProps) -> Html {
         let set_section = props.set_section.clone();
 
         move |_| {
-            console::log!("Clicked edit");
             set_section.emit(Sections::Edit(credential.clone()));
         }
     });
 
     let onclick_delete = Callback::from({
+        let set_section = props.set_section.clone();
+        let credential = props.credential.clone();
         move |_| {
-            console::log!("Clicked delete");
-            // TODO: handle delete
+            let set_section = set_section.clone();
+
+            let payload = AppRequestPayload::DeleteCredential {
+                site: credential.site.clone(),
+                password_id: credential.id.clone(),
+            };
+
+            app_request(payload, move |res| match res {
+                Ok(_) => {
+                    set_section.emit(Sections::List);
+                }
+                Err(err) => {
+                    console::error!("Error: {:?}", err); // TODO: Error Page
+                }
+            });
         }
     });
 
