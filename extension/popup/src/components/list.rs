@@ -121,10 +121,10 @@ fn Credential(props: &CredentialProps) -> Html {
                 </div>
             </td>
             <td class="text-center">
-                <button onclick={onclick_edit}>{"EDIT"}</button>
+                <button class={"text-blue-700"} onclick={onclick_edit}>{"EDIT"}</button>
             </td>
             <td class="text-center">
-                <button onclick={onclick_delete}>{"DELETE"}</button>
+                <button class={"text-red-500"} onclick={onclick_delete}>{"DELETE"}</button>
             </td>
         </tr>
     }
