@@ -10,6 +10,9 @@ pub struct Props {
 
 #[function_component]
 pub fn Unlock(props: &Props) -> Html {
+    let error_state = use_state(|| Option::<String>::None);
+    let error = (*error_state).clone();
+
     let device_password_state = use_state(String::new);
     let device_password = (*device_password_state).clone();
 
@@ -18,12 +21,13 @@ pub fn Unlock(props: &Props) -> Html {
         let on_unlock = props.on_unlock.clone();
 
         move |_| {
+            let error_state = error_state.clone();
             let device_password = device_password.clone();
             let on_unlock = on_unlock.clone();
 
             try_unlock(device_password, move |payload: Option<String>| {
                 if payload.is_some() {
-                    // TODO: ERROR
+                    error_state.set(Some("Invalid device password".to_string()));
                     return;
                 }
 
@@ -34,7 +38,7 @@ pub fn Unlock(props: &Props) -> Html {
 
     html! {
         <div>
-            <Input label="Device Password" value={device_password_state} />
+            <Input input_type="password" label="Device Password" value={device_password_state} error={error} />
             <Button {onclick} text="Unlock"></Button>
         </div>
     }

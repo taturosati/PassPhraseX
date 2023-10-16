@@ -12,11 +12,12 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsValue;
 use web_extensions_sys::chrome;
 
-pub static STORAGE_KEYS: [&str; 2] = ["secret_key", "salt"];
+pub static STORAGE_KEYS: [&str; 3] = ["public_key", "secret_key", "salt"];
 pub static CREDENTIALS_KEYS: [&str; 1] = ["credentials"];
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StorageSecretKey {
+    pub public_key: Option<String>,
     pub secret_key: Option<String>,
     pub salt: Option<String>,
 }
@@ -31,21 +32,19 @@ impl TryInto<Object> for StorageSecretKey {
 }
 
 impl StorageSecretKey {
-    pub fn new(secret_key: Option<String>, salt: Option<String>) -> Self {
-        Self { secret_key, salt }
+    pub fn new(
+        public_key: Option<String>,
+        secret_key: Option<String>,
+        salt: Option<String>,
+    ) -> Self {
+        Self {
+            public_key,
+            secret_key,
+            salt,
+        }
     }
 
     pub async fn load() -> anyhow::Result<Self> {
-        // let js_value = chrome()
-        //     .storage()
-        //     .local()
-        //     .get(&JsValue::from_serde(&STORAGE_KEYS)?)
-        //     .await
-        //     .map_err(|err| anyhow!("Error reading from local storage: {:?}", err))?;
-        //
-        // js_value
-        //     .into_serde()
-        //     .map_err(|err| anyhow!("Error deserializing local storage: {:?}", err))
         load_from_local_storage(&STORAGE_KEYS).await
     }
 
@@ -75,7 +74,7 @@ impl TryInto<Object> for StorageCredentials {
 }
 
 impl StorageCredentials {
-    fn new(credentials: CredentialsMap) -> Self {
+    pub(crate) fn new(credentials: CredentialsMap) -> Self {
         Self { credentials }
     }
 
@@ -83,7 +82,7 @@ impl StorageCredentials {
         load_from_local_storage(&CREDENTIALS_KEYS).await
     }
 
-    async fn save(self) -> anyhow::Result<()> {
+    pub(crate) async fn save(self) -> anyhow::Result<()> {
         save_to_local_storage(self).await
     }
 }

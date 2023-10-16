@@ -291,6 +291,12 @@ async fn handle_app_request(
     request_id: RequestId,
     request: AppRequest,
 ) -> Option<AppResponse> {
+    // chrome()
+    //     .storage()
+    //     .local()
+    //     .remove(&JsValue::from_serde(&["secret_key", "salt", "credentials"]).unwrap())
+    //     .await
+    //     .expect("TODO: panic message");
     let Request { header, payload } = request;
     let payload: AppResponsePayload = match payload {
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {
@@ -333,7 +339,15 @@ async fn handle_app_request(
             let result = { app.borrow_mut().login(seed_phrase, device_password) };
             match result {
                 Ok(key_storage) => match key_storage.save().await {
-                    Ok(()) => AppResponsePayload::Auth { error: None },
+                    Ok(()) => {
+                        let creds = StorageCredentials::new(HashMap::new());
+                        match creds.save().await {
+                            Ok(()) => AppResponsePayload::Auth { error: None },
+                            Err(err) => AppResponsePayload::Auth {
+                                error: Some(err.to_string()),
+                            },
+                        }
+                    }
                     Err(err) => AppResponsePayload::Auth {
                         error: Some(err.to_string()),
                     },
