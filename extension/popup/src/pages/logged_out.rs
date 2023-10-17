@@ -10,9 +10,6 @@ pub fn LoggedOutApp(props: &PageProps) -> Html {
     });
 
     html! {
-        <div>
-            <h1>{ "PassPhraseX" }</h1>
-            <Login {on_login}/>
-        </div>
+        <Login {on_login} />
     }
 }
