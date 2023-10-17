@@ -283,12 +283,6 @@ async fn handle_app_request(
     request_id: RequestId,
     request: AppRequest,
 ) -> Option<AppResponse> {
-    // chrome()
-    //     .storage()
-    //     .local()
-    //     .remove(&JsValue::from_serde(&["secret_key", "salt", "credentials"]).unwrap())
-    //     .await
-    //     .expect("TODO: panic message");
     let Request { header, payload } = request;
     let payload: AppResponsePayload = match payload {
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {

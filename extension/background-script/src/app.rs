@@ -152,7 +152,7 @@ impl App {
         let pass_hash = hash(&device_password, &salt)?;
 
         let seed_phrase = SeedPhrase::from(seed_phrase);
-        let key_pair = KeyPair::new(seed_phrase);
+        let key_pair = KeyPair::try_new(seed_phrase)?;
 
         let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
         let encoded_sk = hex::encode(enc_sk.as_slice());

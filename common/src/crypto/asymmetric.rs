@@ -48,23 +48,29 @@ pub struct KeyPair {
 */
 impl KeyPair {
     pub fn new(seed_phrase: SeedPhrase) -> KeyPair {
+        Self::try_new(seed_phrase).expect("Failed to create key pair")
+    }
+
+    pub fn try_new(seed_phrase: SeedPhrase) -> anyhow::Result<KeyPair> {
         // Get Mnemonic using the default language (English)
-        let mnemonic = Mnemonic::new(seed_phrase.get_phrase(), Default::default()).unwrap();
+        let mnemonic = Mnemonic::new(seed_phrase.get_phrase(), Default::default())
+            .map_err(|_| anyhow::format_err!("Failed to create mnemonic"))?;
 
         // Derive a BIP39 seed value using the given password
         let seed = mnemonic.to_seed("");
 
         // Derive the root `XPrv` from the `seed` value
-        let derived_sk = XPrv::new(&seed).unwrap();
+        let derived_sk =
+            XPrv::new(&seed).map_err(|_| anyhow::format_err!("Failed to derive sk"))?;
 
         // Convert the `XPrv` to a `SecretKey` and `PublicKey`
         let private_key = SecretKey::from(derived_sk.to_bytes());
         let public_key = private_key.public_key();
 
-        KeyPair {
+        Ok(KeyPair {
             private_key,
             public_key,
-        }
+        })
     }
 
     pub fn from_sk(sk: [u8; 32]) -> KeyPair {

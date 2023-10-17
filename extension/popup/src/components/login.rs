@@ -30,7 +30,9 @@ pub fn Login(props: &Props) -> Html {
                 seed_phrase,
                 device_password,
                 move |payload: Option<String>| {
-                    error.set(payload);
+                    if payload.is_some() {
+                        return error.set(Some("Invalid Credentials".to_string()));
+                    }
                     on_login.emit(());
                 },
             )
@@ -43,7 +45,7 @@ pub fn Login(props: &Props) -> Html {
                 <Input input_type="text" value={seed_phrase} label={"Seed Phrase"}/>
                 <Input input_type="password" value={device_password} label={"Device Password"}/>
             </form>
-            {(*error).clone().map(|error| html! { <p class={"text-red-500 text-xs"}>{error}</p> })}
+            {(*error).clone().map(|error| html! { <p class={"text-red-500 text-xs mb-2"}>{error}</p> })}
             <Button {onclick} text={"Login"} />
         </div>
     }
