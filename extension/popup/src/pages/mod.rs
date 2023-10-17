@@ -8,7 +8,7 @@ pub struct PageProps {
     pub set_page: Callback<Pages>,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum Pages {
     Login,
     Unlock,

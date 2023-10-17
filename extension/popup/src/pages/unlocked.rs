@@ -36,7 +36,8 @@ impl Render<SectionProps> for Sections {
 }
 
 #[function_component]
-pub fn UnlockedApp(_props: &PageProps) -> Html {
+pub fn UnlockedApp(props: &PageProps) -> Html {
+    let set_page = props.set_page.clone();
     let section = use_state(|| Sections::List);
 
     let child = section.render(&SectionProps {
@@ -45,7 +46,7 @@ pub fn UnlockedApp(_props: &PageProps) -> Html {
 
     html! {
         <div>
-            <Nav {section}/>
+            <Nav {section} {set_page} />
             {child}
         </div>
     }

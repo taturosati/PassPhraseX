@@ -1,14 +1,13 @@
-use anyhow::anyhow;
-use std::cell::RefCell;
-use std::rc::Rc;
-// use gloo_console as console;
 use crate::app::App;
+use anyhow::anyhow;
 use gloo_utils::format::JsValueSerdeExt;
 use js_sys::Object;
 use passphrasex_common::api::Api;
 use passphrasex_common::model::password::Password;
 use passphrasex_common::model::CredentialsMap;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::JsValue;
 use web_extensions_sys::chrome;
 
@@ -51,12 +50,17 @@ impl StorageSecretKey {
     pub async fn save(self) -> anyhow::Result<()> {
         save_to_local_storage(self).await
     }
+
+    pub async fn remove() -> anyhow::Result<()> {
+        remove_from_local_storage(&STORAGE_KEYS).await
+    }
 }
 
 pub enum StorageCredentialsAction {
     Add(CredentialsMap, Password),
     Edit(CredentialsMap, Password),
     Delete(CredentialsMap, Password),
+    Logout,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,6 +89,10 @@ impl StorageCredentials {
     pub(crate) async fn save(self) -> anyhow::Result<()> {
         save_to_local_storage(self).await
     }
+
+    pub async fn remove() -> anyhow::Result<()> {
+        remove_from_local_storage(&CREDENTIALS_KEYS).await
+    }
 }
 
 impl StorageCredentialsAction {
@@ -106,6 +114,11 @@ impl StorageCredentialsAction {
                 api.delete_password(password.user_id, password._id).await?;
                 let credentials = StorageCredentials::new(credentials);
                 credentials.save().await
+            }
+            StorageCredentialsAction::Logout => {
+                StorageSecretKey::remove().await?;
+                StorageCredentials::remove().await?;
+                Ok(())
             }
         }
     }
@@ -136,6 +149,17 @@ async fn load_from_local_storage<T: for<'a> Deserialize<'a>>(keys: &[&str]) -> a
     js_value
         .into_serde()
         .map_err(|err| anyhow!("Error deserializing local storage: {:?}", err))
+}
+
+async fn remove_from_local_storage(keys: &[&str]) -> anyhow::Result<()> {
+    chrome()
+        .storage()
+        .local()
+        .remove(&JsValue::from_serde(keys)?)
+        .await
+        .map_err(|err| anyhow!("Error reading from local storage: {:?}", err))?;
+
+    Ok(())
 }
 
 pub async fn execute_storage_credentials_action(

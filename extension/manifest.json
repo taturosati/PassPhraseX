@@ -21,6 +21,14 @@
     "host_permissions": [
         "https://*/*"
     ],
+    "content_scripts": [
+        {
+            "matches": ["https://*/*"],
+            "js": ["foreground-script/pkg/foreground_script.js", "foreground-script/index.js"],
+            "css": ["foreground-script/style.css"],
+            "run_at": "document_start"
+        }
+    ],
     "content_security_policy": {
         "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
     },

@@ -130,6 +130,19 @@ impl App {
         Ok(())
     }
 
+    pub fn lock(&mut self) -> anyhow::Result<()> {
+        match self.app_data {
+            AppData::Locked => {
+                return Err(anyhow!("Already locked"));
+            }
+            AppData::Unlocked { .. } => {
+                self.app_data = AppData::Locked;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn login(
         &mut self,
         seed_phrase: String,
@@ -151,6 +164,11 @@ impl App {
         self.app_data = AppData::new(key_pair);
 
         Ok(key_storage)
+    }
+
+    pub fn logout(&mut self) -> StorageCredentialsAction {
+        self.app_data = AppData::Locked;
+        StorageCredentialsAction::Logout
     }
 
     pub fn get_credential(

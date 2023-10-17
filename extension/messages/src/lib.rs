@@ -57,17 +57,19 @@ pub struct Response<T> {
 }
 
 /// App request message.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum AppRequestPayload {
     GetOptionsInfo,
     GetStatus,
     Unlock {
         device_password: String,
     },
+    Lock {},
     Login {
         seed_phrase: String,
         device_password: String,
     },
+    Logout {},
     ListCredentials {},
     GetCredential {
         site: String,

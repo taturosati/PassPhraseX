@@ -6,7 +6,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use gloo_console as console;
 use gloo_utils::format::JsValueSerdeExt;
-use js_sys::{Function, Object};
+use js_sys::Function;
 use messages::{
     next_request_id, AppRequest, AppRequestPayload, AppResponse, AppResponsePayload, PortRequest,
     PortRequestPayload, PortResponse, PortResponsePayload, Request, RequestId, Response,
@@ -167,14 +167,6 @@ fn on_message(
 
 fn on_tab_changed(tab_id: i32, change_info: TabChangeInfo, tab: Tab) {
     console::info!("Tab changed", tab_id, &tab, &change_info);
-    if change_info.status().as_deref() == Some("complete") {
-        if let Some(url) = tab.url() {
-            if url.starts_with("http") {
-                console::info!("Injecting foreground script on tab", tab_id, &tab);
-                wasm_bindgen_futures::spawn_local(inject_frontend(tab_id));
-            }
-        }
-    }
 }
 
 fn on_connect_port(app: &Rc<RefCell<App>>, port: Port) {
@@ -332,6 +324,15 @@ async fn handle_app_request(
                 error: Some(err.to_string()),
             },
         },
+        AppRequestPayload::Lock {} => {
+            match app.borrow_mut().lock() {
+                Ok(()) => AppResponsePayload::Ok,
+                Err(err) => {
+                    console::error!("Failed to lock", err.to_string());
+                    return None; // TODO: Error
+                }
+            }
+        }
         AppRequestPayload::Login {
             seed_phrase,
             device_password,
@@ -355,6 +356,23 @@ async fn handle_app_request(
                 Err(err) => AppResponsePayload::Auth {
                     error: Some(err.to_string()),
                 },
+            }
+        }
+        AppRequestPayload::Logout {} => {
+            let api = match app.borrow().get_api() {
+                Ok(api) => api.clone(),
+                Err(err) => {
+                    console::error!("Failed to get API", err.to_string());
+                    return None; // TODO: Error
+                }
+            };
+            let logout_action = app.borrow_mut().logout();
+            match logout_action.execute(&api).await {
+                Ok(()) => AppResponsePayload::Ok,
+                Err(err) => {
+                    console::error!("Failed to logout", err.to_string());
+                    return None; // TODO: Error
+                }
             }
         }
         AppRequestPayload::GetCredential { site, username } => {
@@ -535,45 +553,4 @@ struct InjectionTarget<'a> {
     all_frames: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     frame_ids: Option<&'a [i32]>,
-}
-
-async fn inject_frontend(tab_id: TabId) {
-    let css_injection = JsValue::from_serde(&CssInjection {
-        files: Some(&["foreground-script/style.css"]),
-        css: None,
-        target: InjectionTarget {
-            tab_id,
-            all_frames: None,
-            frame_ids: None,
-        },
-    })
-    .unwrap();
-    console::info!("Inject CSS", &css_injection);
-    if let Err(err) = chrome()
-        .scripting()
-        .insert_css(&Object::from(css_injection))
-        .await
-    {
-        console::info!("Unable to inject CSS", err);
-    }
-    let script_injection = JsValue::from_serde(&ScriptInjection {
-        files: Some(&[
-            "foreground-script/pkg/foreground_script.js",
-            "foreground-script/index.js",
-        ]),
-        target: InjectionTarget {
-            tab_id,
-            all_frames: None,
-            frame_ids: None,
-        },
-    })
-    .unwrap();
-
-    if let Err(err) = chrome()
-        .scripting()
-        .execute_script(&Object::from(script_injection))
-        .await
-    {
-        console::info!("Unable to inject JS", err);
-    }
 }
