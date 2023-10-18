@@ -363,19 +363,17 @@ async fn handle_app_request(
             let logout_action = app.borrow_mut().logout();
             match logout_action.execute(&api).await {
                 Ok(()) => AppResponsePayload::Ok,
-                Err(err) => {
-                    console::error!("Failed to logout", err.to_string());
-                    return None; // TODO: Error
-                }
+                Err(err) => AppResponsePayload::Error {
+                    message: err.to_string(),
+                },
             }
         }
         AppRequestPayload::GetCredential { site, username } => {
             match app.borrow().get_credential(site, username) {
                 Ok((username, password)) => AppResponsePayload::Credential { username, password },
-                Err(err) => {
-                    console::error!("Failed to get credential", err.to_string());
-                    return None; // TODO: Error
-                }
+                Err(err) => AppResponsePayload::Error {
+                    message: err.to_string(),
+                },
             }
         }
         AppRequestPayload::AddCredential {
@@ -389,31 +387,23 @@ async fn handle_app_request(
             };
 
             match result {
-                Ok(action) => {
-                    if execute_storage_credentials_action(app, action)
-                        .await
-                        .is_err()
-                    {
-                        return None; // TODO: Error
-                    }
-
-                    AppResponsePayload::Credential { username, password }
-                }
-                Err(err) => {
-                    console::error!("Failed to add credential", err.to_string());
-                    return None; // TODO: Error
-                }
+                Ok(action) => match execute_storage_credentials_action(app, action).await {
+                    Ok(()) => AppResponsePayload::Credential { username, password },
+                    Err(err) => AppResponsePayload::Error {
+                        message: err.to_string(),
+                    },
+                },
+                Err(err) => AppResponsePayload::Error {
+                    message: err.to_string(),
+                },
             }
         }
-        AppRequestPayload::ListCredentials {} => {
-            match app.borrow().list_credentials() {
-                Ok(credentials) => AppResponsePayload::Credentials(credentials),
-                Err(err) => {
-                    console::error!("Failed to list credentials", err.to_string());
-                    return None; // TODO: Error
-                }
-            }
-        }
+        AppRequestPayload::ListCredentials {} => match app.borrow().list_credentials() {
+            Ok(credentials) => AppResponsePayload::Credentials(credentials),
+            Err(err) => AppResponsePayload::Error {
+                message: err.to_string(),
+            },
+        },
         AppRequestPayload::EditCredential {
             site,
             password_id,
@@ -425,52 +415,30 @@ async fn handle_app_request(
             };
 
             match result {
-                Ok(action) => {
-                    if execute_storage_credentials_action(app, action)
-                        .await
-                        .is_err()
-                    {
-                        return None; // TODO: Error
-                    }
-
-                    AppResponsePayload::Ok
-                }
-                Err(err) => {
-                    console::error!("Failed to edit credential", err.to_string());
-                    return None; // TODO: Error
-                }
+                Ok(action) => match execute_storage_credentials_action(app, action).await {
+                    Ok(()) => AppResponsePayload::Ok,
+                    Err(err) => AppResponsePayload::Error {
+                        message: err.to_string(),
+                    },
+                },
+                Err(err) => AppResponsePayload::Error {
+                    message: err.to_string(),
+                },
             }
         }
         AppRequestPayload::DeleteCredential { site, password_id } => {
             let result = { app.borrow_mut().delete_credential(site, password_id) };
 
             match result {
-                Ok(action) => {
-                    // let api = match app.borrow().get_api() {
-                    //     Ok(api) => api,
-                    //     Err(err) => {
-                    //         console::error!("Failed to get API", err.to_string());
-                    //         return None; // TODO: Error
-                    //     }
-                    // };
-                    //
-                    // if action.execute(&api).await.is_err() {
-                    //     return None; // TODO: Error
-                    // }
-
-                    if execute_storage_credentials_action(app, action)
-                        .await
-                        .is_err()
-                    {
-                        return None; // TODO: Error
-                    }
-
-                    AppResponsePayload::Ok
-                }
-                Err(err) => {
-                    console::error!("Failed to delete credential", err.to_string());
-                    return None; // TODO: Error
-                }
+                Ok(action) => match execute_storage_credentials_action(app, action).await {
+                    Ok(()) => AppResponsePayload::Ok,
+                    Err(err) => AppResponsePayload::Error {
+                        message: err.to_string(),
+                    },
+                },
+                Err(err) => AppResponsePayload::Error {
+                    message: err.to_string(),
+                },
             }
         }
     };
