@@ -3,8 +3,8 @@ use crate::{ConnectedPorts, PortError, PortId};
 use anyhow::anyhow;
 use messages::{next_request_id, Credential, RequestId};
 use passphrasex_common::api::Api;
-use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
-use passphrasex_common::crypto::symmetric::{decrypt_data, encrypt_data, generate_salt, hash};
+use passphrasex_common::crypto::asymmetric::KeyPair;
+use passphrasex_common::crypto::symmetric::{decrypt_data, hash};
 use passphrasex_common::model::password::Password;
 use passphrasex_common::model::CredentialsMap;
 use std::collections::HashMap;
@@ -25,18 +25,7 @@ pub enum AppData {
 }
 
 impl AppData {
-    fn new(key_pair: KeyPair) -> Self {
-        let api = Api::new(key_pair.clone());
-        let credentials_map = CredentialsMap::new();
-
-        Self::Unlocked(UnlockedAppData {
-            key_pair,
-            credentials_map,
-            api,
-        })
-    }
-
-    fn with_data(key_pair: KeyPair, credentials_map: CredentialsMap) -> Self {
+    fn new(key_pair: KeyPair, credentials_map: CredentialsMap) -> Self {
         let api = Api::new(key_pair.clone());
 
         Self::Unlocked(UnlockedAppData {
@@ -120,7 +109,7 @@ impl App {
 
         match self.app_data {
             AppData::Locked => {
-                self.app_data = AppData::with_data(key_pair, credentials_map);
+                self.app_data = AppData::new(key_pair, credentials_map);
             }
             AppData::Unlocked { .. } => {
                 return Err(anyhow!("Already unlocked"));
@@ -143,27 +132,8 @@ impl App {
         Ok(())
     }
 
-    pub fn login(
-        &mut self,
-        seed_phrase: String,
-        device_password: String,
-    ) -> anyhow::Result<StorageSecretKey> {
-        let salt = generate_salt()?;
-        let pass_hash = hash(&device_password, &salt)?;
-
-        let seed_phrase = SeedPhrase::from(seed_phrase);
-        let key_pair = KeyPair::try_new(seed_phrase)?;
-
-        let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
-        let encoded_sk = hex::encode(enc_sk.as_slice());
-
-        let public_key = key_pair.get_pk();
-
-        let key_storage = StorageSecretKey::new(Some(public_key), Some(encoded_sk), Some(salt));
-
-        self.app_data = AppData::new(key_pair);
-
-        Ok(key_storage)
+    pub fn login(&mut self, key_pair: KeyPair, credentials: CredentialsMap) {
+        self.app_data = AppData::new(key_pair, credentials);
     }
 
     pub fn logout(&mut self) -> StorageCredentialsAction {

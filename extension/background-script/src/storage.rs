@@ -3,10 +3,13 @@ use anyhow::anyhow;
 use gloo_utils::format::JsValueSerdeExt;
 use js_sys::Object;
 use passphrasex_common::api::Api;
+use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
+use passphrasex_common::crypto::symmetric::{encrypt_data, generate_salt, hash};
 use passphrasex_common::model::password::Password;
 use passphrasex_common::model::CredentialsMap;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use wasm_bindgen::JsValue;
 use web_extensions_sys::chrome;
@@ -14,7 +17,7 @@ use web_extensions_sys::chrome;
 pub static STORAGE_KEYS: [&str; 3] = ["public_key", "secret_key", "salt"];
 pub static CREDENTIALS_KEYS: [&str; 1] = ["credentials"];
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StorageSecretKey {
     pub public_key: Option<String>,
     pub secret_key: Option<String>,
@@ -43,6 +46,27 @@ impl StorageSecretKey {
         }
     }
 
+    pub async fn from_seed_phrase(
+        seed_phrase: String,
+        device_password: String,
+    ) -> anyhow::Result<(Self, KeyPair)> {
+        let salt = generate_salt()?;
+        let pass_hash = hash(&device_password, &salt)?;
+
+        let seed_phrase = SeedPhrase::from(seed_phrase);
+        let key_pair = KeyPair::try_new(seed_phrase)?;
+
+        let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
+        let secret_key = hex::encode(enc_sk.as_slice());
+
+        let public_key = key_pair.get_pk();
+
+        Ok((
+            Self::new(Some(public_key), Some(secret_key), Some(salt)),
+            key_pair,
+        ))
+    }
+
     pub async fn load() -> anyhow::Result<Self> {
         load_from_local_storage(&STORAGE_KEYS).await
     }
@@ -63,7 +87,7 @@ pub enum StorageCredentialsAction {
     Logout,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StorageCredentials {
     pub credentials: CredentialsMap,
 }
@@ -77,8 +101,21 @@ impl TryInto<Object> for StorageCredentials {
     }
 }
 
+impl From<Vec<Password>> for StorageCredentials {
+    fn from(passwords: Vec<Password>) -> Self {
+        let mut credentials = CredentialsMap::new();
+        for password in passwords {
+            let map = credentials
+                .entry(password.site.clone())
+                .or_insert_with(HashMap::new);
+            map.insert(password.username.clone(), password);
+        }
+        Self { credentials }
+    }
+}
+
 impl StorageCredentials {
-    pub(crate) fn new(credentials: CredentialsMap) -> Self {
+    pub fn new(credentials: CredentialsMap) -> Self {
         Self { credentials }
     }
 
@@ -86,7 +123,7 @@ impl StorageCredentials {
         load_from_local_storage(&CREDENTIALS_KEYS).await
     }
 
-    pub(crate) async fn save(self) -> anyhow::Result<()> {
+    pub async fn save(self) -> anyhow::Result<()> {
         save_to_local_storage(self).await
     }
 
