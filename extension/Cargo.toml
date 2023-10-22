@@ -1,7 +1,6 @@
 [workspace]
 members = [
   "background-script",
-  "foreground-script",
   "options",
   "messages",
   "popup"

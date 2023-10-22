@@ -8,6 +8,5 @@ _default:
 # Build the web extension
 build:
   cd background-script/ && wasm-pack build --release -t web
-  cd foreground-script/ && wasm-pack build --release -t no-modules
   cd options/ && wasm-pack build --release -t web
   cd popup/ && NODE_ENV=production tailwindcss -c ./tailwind.config.js -o ./tailwind.css --minify && wasm-pack build --release -t web

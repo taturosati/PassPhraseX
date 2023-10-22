@@ -24,7 +24,7 @@
     "content_scripts": [
         {
             "matches": ["https://*/*"],
-            "js": ["foreground-script/pkg/foreground_script.js", "foreground-script/index.js"],
+            "js": ["foreground-script/index.js"],
             "css": ["foreground-script/style.css"],
             "run_at": "document_start"
         }
