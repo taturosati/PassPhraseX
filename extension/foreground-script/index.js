@@ -3,9 +3,13 @@
 //     .then(module => module.start())
 //     .catch(console.error);
 
+
 function start() {
     console.debug("Starting");
     const port = connect();
+
+    let username_value = null;
+    let password_value = null;
 
     const on_change = function () {
         console.debug("Changed");
@@ -28,6 +32,21 @@ function start() {
 
                 if (password_input) {
                     password_input.value = password;
+                }
+            } else {
+                console.log("No credential found, looking for autosave");
+                if (username_input) {
+                    username_input.addEventListener("input", function (e) {
+                        username_value = e.target.value;
+                        console.log("Sending autosave", username_value, password_value);
+                    });
+                }
+
+                if (password_input) {
+                    password_input.addEventListener("input", function (e) {
+                        password_value = e.target.value;
+                        console.log("Sending autosave", username_value, password_value);
+                    });
                 }
             }
         });

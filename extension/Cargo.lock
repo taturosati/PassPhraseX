@@ -1164,19 +1164,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "options"
-version = "0.1.0"
-dependencies = [
- "gloo-console 0.2.3",
- "gloo-utils 0.1.7",
- "messages",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-extensions-sys",
- "web-sys",
-]
-
-[[package]]
 name = "passphrasex_common"
 version = "0.2.0"
 dependencies = [
