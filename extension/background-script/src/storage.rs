@@ -108,7 +108,7 @@ impl From<Vec<Password>> for StorageCredentials {
             let map = credentials
                 .entry(password.site.clone())
                 .or_insert_with(HashMap::new);
-            map.insert(password.username.clone(), password);
+            map.insert(password._id.clone(), password);
         }
         Self { credentials }
     }
