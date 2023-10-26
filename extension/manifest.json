@@ -1,0 +1,39 @@
+{
+    "name": "PassPhraseX",
+    "description": "Password Manager",
+    "version": "0.1.0",
+    "manifest_version": 3,
+    "background": {
+        "service_worker": "./background-script/index.js",
+        "type": "module"
+    },
+    "action": {
+        "default_popup": "./popup/index.html"
+    },
+    "permissions": [
+        "activeTab",
+        "tabs",
+        "scripting",
+        "storage",
+        "nativeMessaging"
+    ],
+    "host_permissions": [
+        "https://*/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": ["https://*/*"],
+            "js": ["foreground-script/index.js"],
+            "css": ["foreground-script/style.css"],
+            "run_at": "document_start"
+        }
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    },
+    "web_accessible_resources": [{
+       "resources": [ "foreground-script/pkg/foreground_script_bg.wasm" ],
+       "matches": [ "https://*/*" ],
+       "extension_ids": []
+    }]
+}
