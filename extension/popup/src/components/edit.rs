@@ -47,10 +47,10 @@ pub fn Edit(props: &EditProps) -> Html {
     };
     html!(
         <div>
-            <h1>{"Edit"}</h1>
+            <h1 class={"text-lg"}>{"Edit"}</h1>
             <form>
-                <Input label="Password" value={password} />
-                <Button {onclick} text={"Add Credential"} />
+                <Input label="New Password" value={password} />
+                <Button {onclick} text={"Save"} />
             </form>
         </div>
     )
