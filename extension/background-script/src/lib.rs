@@ -333,83 +333,32 @@ async fn handle_app_request(
         AppRequestPayload::Login {
             seed_phrase,
             device_password,
-        } => {
-            match StorageSecretKey::from_seed_phrase(seed_phrase, device_password).await {
-                Ok((sk, key_pair)) => match Api::new(key_pair.clone())
-                    .get_passwords(key_pair.get_pk())
-                    .await
-                {
-                    Ok(passwords) => {
-                        let creds = StorageCredentials::from(passwords);
-                        {
-                            app.borrow_mut().login(key_pair, creds.credentials.clone())
-                        };
+        } => match StorageSecretKey::from_seed_phrase(seed_phrase, device_password).await {
+            Ok((sk, key_pair)) => match Api::new(key_pair.clone())
+                .get_passwords(key_pair.get_pk())
+                .await
+            {
+                Ok(passwords) => {
+                    let creds = StorageCredentials::from(passwords);
+                    {
+                        app.borrow_mut().login(key_pair, creds.credentials.clone())
+                    };
 
-                        match creds.save().await.and(sk.save().await) {
-                            Ok(()) => AppResponsePayload::Auth { error: None },
-                            Err(err) => AppResponsePayload::Auth {
-                                error: Some(err.to_string()),
-                            },
-                        }
+                    match creds.save().await.and(sk.save().await) {
+                        Ok(()) => AppResponsePayload::Auth { error: None },
+                        Err(err) => AppResponsePayload::Auth {
+                            error: Some(err.to_string()),
+                        },
                     }
-                    Err(err) => AppResponsePayload::Auth {
-                        error: Some(err.to_string()),
-                    },
-                },
+                }
                 Err(err) => AppResponsePayload::Auth {
                     error: Some(err.to_string()),
                 },
-            }
-            // let result = { app.borrow_mut().login(seed_phrase, device_password.clone()) };
-            // match result {
-            //     Ok(key_storage) => {
-            //         let public_key = key_storage.public_key.clone().unwrap(); // TODO: Error
-            //         match key_storage.clone().save().await {
-            //             Ok(()) => {
-            //                 match app
-            //                     .borrow()
-            //                     .get_api()
-            //                     .unwrap()
-            //                     .get_passwords(public_key)
-            //                     .await
-            //                 {
-            //                     Ok(passwords) => {
-            //                         let creds = StorageCredentials::from(passwords);
-            //                         let result = {
-            //                             app.borrow_mut().unlock(
-            //                                 key_storage,
-            //                                 creds.clone(),
-            //                                 device_password,
-            //                             )
-            //                         };
-            //
-            //                         match result {
-            //                             Ok(()) => match creds.save().await {
-            //                                 Ok(()) => AppResponsePayload::Auth { error: None },
-            //                                 Err(err) => AppResponsePayload::Auth {
-            //                                     error: Some(err.to_string()),
-            //                                 },
-            //                             },
-            //                             Err(err) => AppResponsePayload::Auth {
-            //                                 error: Some(err.to_string()),
-            //                             },
-            //                         }
-            //                     }
-            //                     Err(err) => AppResponsePayload::Auth {
-            //                         error: Some(err.to_string()),
-            //                     },
-            //                 }
-            //             }
-            //             Err(err) => AppResponsePayload::Auth {
-            //                 error: Some(err.to_string()),
-            //             },
-            //         }
-            //     }
-            //     Err(err) => AppResponsePayload::Auth {
-            //         error: Some(err.to_string()),
-            //     },
-            // }
-        }
+            },
+            Err(err) => AppResponsePayload::Auth {
+                error: Some(err.to_string()),
+            },
+        },
         AppRequestPayload::Logout {} => {
             let api = match app.borrow().get_api() {
                 Ok(api) => api.clone(),

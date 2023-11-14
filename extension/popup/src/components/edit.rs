@@ -49,7 +49,7 @@ pub fn Edit(props: &EditProps) -> Html {
         <div>
             <h1 class={"text-lg"}>{"Edit"}</h1>
             <form>
-                <Input label="New Password" value={password} />
+                <Input label="New Password" input_type={"password"} value={password} />
                 <Button {onclick} text={"Save"} />
             </form>
         </div>
