@@ -1,5 +1,4 @@
 use crate::api::app_request;
-use crate::pages::unlocked::Sections;
 use crate::pages::Pages;
 use gloo_console as console;
 use messages::AppRequestPayload;
@@ -8,35 +7,61 @@ use yew::{
     UseStateHandle,
 };
 
-#[derive(Properties, PartialEq)]
-pub struct NavProps {
-    pub section: UseStateHandle<Sections>,
+#[derive(Properties, PartialEq, Clone)]
+pub struct NavTab<Section: PartialEq + Clone> {
+    pub text: String,
+    pub section: Section,
+    pub button: Option<NavTabButtonProps>,
+}
+
+#[derive(Properties, PartialEq, Clone)]
+pub struct NavTabButtonProps {
     pub set_page: Callback<Pages>,
+    pub page: Pages,
+    pub payload: AppRequestPayload,
+}
+
+impl<Section: PartialEq + Clone + 'static> NavTab<Section> {
+    pub fn render(&self, section: UseStateHandle<Section>) -> Html {
+        if let Some(button) = self.button.clone() {
+            html! {
+                <TabButton text={self.text.clone()} set_page={button.set_page} page={button.page} payload={button.payload} />
+            }
+        } else {
+            html! {
+                <Tab<Section> text={self.text.clone()} this_section={self.section.clone()} {section} />
+            }
+        }
+    }
+}
+
+#[derive(Properties, PartialEq, Clone)]
+pub struct NavProps<Section: PartialEq + Clone> {
+    pub section: UseStateHandle<Section>,
+    pub set_page: Callback<Pages>,
+    pub tabs: Vec<NavTab<Section>>,
 }
 
 #[function_component]
-pub fn Nav(props: &NavProps) -> Html {
+pub fn Nav<Section: PartialEq + Clone + 'static>(props: &NavProps<Section>) -> Html {
     let section = props.section.clone();
 
     html! {
         <ul class={classes!("mb-2", "flex", "list-none", "flex-row", "flex-wrap", "border-b-0", "pl-0")} role="tablist">
-            <Tab section={section.clone()} this_section={Sections::List} text="List" />
-            <Tab section={section.clone()} this_section={Sections::Add} text="Add" />
-            <TabButton text="Lock" set_page={props.set_page.clone()} page={Pages::Unlock} payload={AppRequestPayload::Lock {}}/>
-            <TabButton text="Logout" set_page={props.set_page.clone()} page={Pages::Login} payload={AppRequestPayload::Logout {}} />
+            {props.tabs.iter().map(|tab| tab.render(section.clone())).collect::<Html>()}
         </ul>
     }
 }
 
 #[derive(Properties, PartialEq)]
-struct TabProps {
-    pub section: UseStateHandle<Sections>,
-    pub this_section: Sections,
+struct TabProps<Section: PartialEq> {
+    pub section: UseStateHandle<Section>,
+    pub this_section: Section,
     pub text: String,
 }
 
 #[function_component]
-fn Tab(props: &TabProps) -> Html {
+fn Tab<Section: PartialEq + Clone + 'static>(props: &TabProps<Section>) -> Html {
     let section = props.section.clone();
     let classes = use_state(|| "border-transparent text-neutral-500");
     let this_section = props.this_section.clone();
@@ -57,7 +82,7 @@ fn Tab(props: &TabProps) -> Html {
             let this_section = this_section.clone();
 
             move |_| {
-                if *section == this_section {
+                if variant_eq((*section).clone(), this_section.clone()) {
                     classes.set("border-blue-700 text-blue-700");
                 } else {
                     classes.set("border-transparent text-neutral-500");
@@ -113,4 +138,8 @@ fn TabButton(props: &TabButtonProps) -> Html {
             >{props.text.clone()}</a>
         </li>
     }
+}
+
+fn variant_eq<T>(a: T, b: T) -> bool {
+    std::mem::discriminant(&a) == std::mem::discriminant(&b)
 }

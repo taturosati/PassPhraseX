@@ -46,6 +46,25 @@ impl StorageSecretKey {
         }
     }
 
+    pub fn generate(device_password: String) -> anyhow::Result<(Self, String, KeyPair)> {
+        let salt = generate_salt()?;
+        let pass_hash = hash(&device_password, &salt)?;
+
+        let seed_phrase = SeedPhrase::new();
+        let key_pair = KeyPair::try_new(seed_phrase.clone())?;
+
+        let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
+        let secret_key = hex::encode(enc_sk.as_slice());
+
+        let public_key = key_pair.get_pk();
+
+        Ok((
+            Self::new(Some(public_key), Some(secret_key), Some(salt)),
+            seed_phrase.get_phrase(),
+            key_pair,
+        ))
+    }
+
     pub async fn from_seed_phrase(
         seed_phrase: String,
         device_password: String,
