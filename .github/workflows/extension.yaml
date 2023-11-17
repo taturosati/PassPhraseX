@@ -1,23 +1,20 @@
 on:
   push:
-    branches: [ main_api ]
+    branches: [ main_extension ]
   pull_request:
-    branches: [ main_api ]
+    branches: [ main_extension ]
 
-name: API
+name: Extension
 
 jobs:
   test:
-    name: Lint & Test API
+    name: Lint extension
     runs-on: ubuntu-latest
     steps:
       - name: Install tools
         run: |
           sudo apt-get update
           sudo apt-get install -y libssl-dev pkg-config curl build-essential
-
-      - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@1.6.0
 
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -35,15 +32,13 @@ jobs:
           rustup component add rustfmt
 
       - name: Format
-        working-directory: api
+        working-directory: extension
         run: cargo fmt --all --check
 
       - name: Lint
-        working-directory: api
+        working-directory: extension
         run: cargo clippy --all -- -D warnings
 
-      - name: Run cargo check & test
-        working-directory: api
-        run: |
-          cargo check --all
-          cargo test --all
+      - name: Run cargo check
+        working-directory: cli
+        run: cargo check --all

@@ -69,6 +69,9 @@ pub enum AppRequestPayload {
         seed_phrase: String,
         device_password: String,
     },
+    Register {
+        device_password: String,
+    },
     Logout {},
     ListCredentials {},
     GetCredential {
@@ -107,6 +110,7 @@ pub enum AppResponsePayload {
     Error {
         message: String,
     },
+    SeedPhrase(String),
     Ok,
     Status {
         is_logged_in: bool,

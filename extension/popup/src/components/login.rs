@@ -5,7 +5,7 @@ use yew::{function_component, html, use_state, Callback, Html, Properties};
 
 #[derive(Properties, PartialEq)]
 pub struct Props {
-    pub on_login: Callback<()>,
+    pub cb: Callback<()>,
 }
 
 #[function_component]
@@ -17,12 +17,12 @@ pub fn Login(props: &Props) -> Html {
     let onclick = {
         let seed_phrase = (*seed_phrase).clone();
         let device_password = (*device_password).clone();
-        let on_login = props.on_login.clone();
+        let cb = props.cb.clone();
         let error = error.clone();
 
         move |_| {
             let error = error.clone();
-            let on_login = on_login.clone();
+            let cb = cb.clone();
             let seed_phrase = seed_phrase.clone();
             let device_password = device_password.clone();
 
@@ -33,7 +33,7 @@ pub fn Login(props: &Props) -> Html {
                     if payload.is_some() {
                         return error.set(Some("Invalid Credentials".to_string()));
                     }
-                    on_login.emit(());
+                    cb.emit(());
                 },
             )
         }
