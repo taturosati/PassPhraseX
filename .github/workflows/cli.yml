@@ -1,8 +1,8 @@
 on:
     push:
-        branches: [ main, main_cli ]
+        branches: [ main_cli ]
     pull_request:
-        branches: [ main, main_cli ]
+        branches: [ main_cli ]
 
 name: CLI
 

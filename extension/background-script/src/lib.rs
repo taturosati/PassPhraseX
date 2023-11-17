@@ -287,9 +287,7 @@ async fn auth(
     {
         Ok(passwords) => {
             let creds = StorageCredentials::from(passwords);
-            {
-                app.borrow_mut().login(key_pair, creds.credentials.clone())
-            };
+            app.borrow_mut().login(key_pair, creds.credentials.clone());
 
             match creds.save().await.and(storage_key.save().await) {
                 Ok(()) => AppResponsePayload::Auth { error: None },

@@ -9,7 +9,6 @@ use passphrasex_common::model::password::Password;
 use passphrasex_common::model::CredentialsMap;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 use wasm_bindgen::JsValue;
 use web_extensions_sys::chrome;
@@ -124,9 +123,7 @@ impl From<Vec<Password>> for StorageCredentials {
     fn from(passwords: Vec<Password>) -> Self {
         let mut credentials = CredentialsMap::new();
         for password in passwords {
-            let map = credentials
-                .entry(password.site.clone())
-                .or_insert_with(HashMap::new);
+            let map = credentials.entry(password.site.clone()).or_default();
             map.insert(password._id.clone(), password);
         }
         Self { credentials }
