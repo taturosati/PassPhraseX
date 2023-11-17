@@ -385,15 +385,9 @@ async fn handle_app_request(
             }
         }
         AppRequestPayload::Logout {} => {
-            let api = match app.borrow().get_api() {
-                Ok(api) => api.clone(),
-                Err(err) => {
-                    console::error!("Failed to get API", err.to_string());
-                    return None; // TODO: Error
-                }
-            };
             let logout_action = app.borrow_mut().logout();
-            match logout_action.execute(&api).await {
+
+            match logout_action.execute_without_api().await {
                 Ok(()) => AppResponsePayload::Ok,
                 Err(err) => AppResponsePayload::Error {
                     message: err.to_string(),

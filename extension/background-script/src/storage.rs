@@ -175,6 +175,17 @@ impl StorageCredentialsAction {
             }
         }
     }
+
+    pub async fn execute_without_api(self) -> anyhow::Result<()> {
+        match self {
+            StorageCredentialsAction::Logout => {
+                StorageSecretKey::remove().await?;
+                StorageCredentials::remove().await?;
+                Ok(())
+            }
+            _ => Err(anyhow!("Cannot execute action without API")),
+        }
+    }
 }
 
 async fn save_to_local_storage(
