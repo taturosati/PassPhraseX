@@ -1,28 +1,34 @@
-// const wasm_url = chrome.runtime.getURL("foreground-script/pkg/foreground_script_bg.wasm");
-// wasm_bindgen(wasm_url)
-//     .then(module => module.start())
-//     .catch(console.error);
-
 
 function start() {
-    console.debug("Starting");
     const port = connect();
+    const site = getSite();
 
-    let username_value = null;
-    let password_value = null;
+    let added_listener_username = false;
+    let added_listener_password = false;
 
     const on_change = function () {
-        console.debug("Changed");
-
         const [username_input, password_input] = getInputs();
         if (!username_input && !password_input) {
             return;
         }
 
-        console.debug("Found input");
+        if (username_input && !added_listener_username) {
+            added_listener_username = true;
+            username_input.addEventListener(
+                "input",
+                (e) => setTmpCredentialUsername(port, site, e.target.value)
+            );
+        }
+
+        if (password_input && !added_listener_password) {
+            added_listener_password = true;
+            password_input.addEventListener(
+                "input",
+                (e) => setTmpCredentialPassword(port, site, e.target.value)
+            );
+        }
 
         port.onMessage.addListener(function (msg) {
-            console.debug("Received message", msg);
             if (msg.payload.Credential) {
                 const { username, password } = msg.payload.Credential;
 
@@ -33,52 +39,30 @@ function start() {
                 if (password_input) {
                     password_input.value = password;
                 }
-            } else {
-                console.log("No credential found, looking for autosave");
-                if (username_input) {
-                    username_input.addEventListener("input", function (e) {
-                        username_value = e.target.value;
-                        console.log("Sending autosave", username_value, password_value);
-                    });
-                }
-
-                if (password_input) {
-                    password_input.addEventListener("input", function (e) {
-                        password_value = e.target.value;
-                        console.log("Sending autosave", username_value, password_value);
-                    });
-                }
             }
         });
 
-        let site = getSite();
-        const payload = {
-            header: {},
-            payload: {
-                GetCredential: {
-                    site: site,
-                }
-            }
-        }
-
-        port.postMessage(payload);
-
+        getCredential(port, site);
     };
 
     const mutation_observer = new MutationObserver(on_change);
 
     const config = {
-        attributes: false,            // Observe changes to attributes
-        childList: true,             // Observe additions or removals of child nodes
-        subtree: true,               // Observe mutations in the entire subtree
-        characterData: false,         // Observe changes to the data of text nodes
-        attributeOldValue: false,    // Record the previous value of attributes
-        characterDataOldValue: false // Record the previous value of text nodes
+        attributes: false,              // Observe changes to attributes
+        childList: true,                // Observe additions or removals of child nodes
+        subtree: true,                  // Observe mutations in the entire subtree
+        characterData: false,           // Observe changes to the data of text nodes
+        attributeOldValue: false,       // Record the previous value of attributes
+        characterDataOldValue: false    // Record the previous value of text nodes
     };
+
+    window.onsubmit = function () {
+        mutation_observer.disconnect();
+        storeTmpCredential(port, site);
+    }
 
     try {
         mutation_observer.observe(document.body, config);
-        console.debug("Successfully started observer");
     } catch (e) {
         console.error("Failed to start observer", e);
     }
@@ -109,6 +93,62 @@ function getInputs() {
 function connect() {
     const connect_info = null;
     return chrome.runtime.connect(null, connect_info);
+}
+
+function getCredential(port, site) {
+    console.debug("Getting credential");
+    const payload = {
+        header: {},
+        payload: {
+            GetCredential: {
+                site
+            }
+        }
+    }
+
+    port.postMessage(payload)
+}
+
+function setTmpCredentialUsername(port, site, username) {
+    console.debug("Saving temp username", username);
+    const payload = {
+        header: {},
+        payload: {
+            SetTmpCredentialUsername: {
+                site,
+                username
+            }
+        }
+    }
+
+    port.postMessage(payload)
+}
+
+function setTmpCredentialPassword(port, site, password) {
+    console.debug("Saving temp password", password);
+    const payload = {
+        header: {},
+        payload: {
+            SetTmpCredentialPassword: {
+                site,
+                password
+            }
+        }
+    }
+    port.postMessage(payload)
+}
+
+function storeTmpCredential(port, site) {
+    console.debug("Saving temp credential");
+    const payload = {
+        header: {},
+        payload: {
+            StoreTmpCredential: {
+                site
+            }
+        }
+    }
+    port.postMessage(payload)
 }
 
 document.addEventListener("DOMContentLoaded", start);
