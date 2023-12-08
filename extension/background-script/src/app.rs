@@ -208,6 +208,10 @@ impl App {
         match &mut self.app_data {
             AppData::Locked => Err(anyhow!("Not Logged In")),
             AppData::Unlocked(app_data) => {
+                if username.is_empty() || site.is_empty() {
+                    return Err(anyhow!("Username & site cannot be empty"));
+                }
+
                 let password_id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
                 let user_id = app_data.key_pair.get_pk();
 
@@ -275,17 +279,36 @@ impl App {
         match &self.app_data {
             AppData::Locked => Err(anyhow!("Not Logged In")),
             AppData::Unlocked(app_data) => {
-                let password_id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
-                let has_password = app_data
-                    .credentials_map
-                    .get(&site)
-                    .map_or(false, |map| map.contains_key(&password_id));
+                let site_map = app_data.credentials_map.get(&site).clone();
 
-                if has_password {
-                    self.edit_credential(site, password_id, password)
-                } else {
-                    self.add_credential(site, username, password)
+                if password.is_empty() {
+                    return Err(anyhow!("Password cannot be empty"));
                 }
+
+                match site_map {
+                    Some(site_map) => match site_map.values().next() {
+                        Some(pass) => {
+                            let password_id = pass._id.clone();
+                            self.edit_credential(site, password_id, password)
+                        }
+                        None => self.add_credential(site, username, password),
+                    },
+                    None => self.add_credential(site, username, password),
+                }
+
+                //
+                //
+                //
+                // let has_password = app_data
+                //     .credentials_map
+                //     .get(&site)
+                //     .map_or(false, |map| map.contains_key(&password_id));
+                //
+                // if has_password {
+                //     self.edit_credential(site, password_id, password)
+                // } else {
+                //     self.add_credential(site, username, password)
+                // }
             }
         }
     }
