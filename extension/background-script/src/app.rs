@@ -279,7 +279,7 @@ impl App {
         match &self.app_data {
             AppData::Locked => Err(anyhow!("Not Logged In")),
             AppData::Unlocked(app_data) => {
-                let site_map = app_data.credentials_map.get(&site).clone();
+                let site_map = app_data.credentials_map.get(&site);
 
                 if password.is_empty() {
                     return Err(anyhow!("Password cannot be empty"));
