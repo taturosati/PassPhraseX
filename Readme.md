@@ -1,12 +1,12 @@
 # PassPhraseX
-## A simple password manager
-### Features
+## Features
 - Passwords are locally encrypted
 - Passwords are synced through a public api (you can use your own)
 - Use a separate password for each device
 - Use seed phrase to login on new device
 
-### How to use
+## How to use
+### How to use the cli
 - Download the latest release
   - Make sure to have cargo installed
   - Run `cargo install passphrasex`
@@ -27,7 +27,20 @@
 - Generate a new password
   - `passphrasex generate`
 
+### How to use the Chrome extension
+- Clone git repository
+  - `git clone https://github.com/srosati/passphrasex`
+- Build
+  - Install just (https://github.com/casey/just)
+  - Go into extension directory `cd passphrasex/extension`
+  - Run `just build`
+- Go to chrome://extensions
+- Enable developer mode
+- Click on load unpacked
+- Select the extension directory
+
 ### How to use your own api
+- CLI only
 - Follow the instructions in the api directory
 - Set the `API_URI` environment variable to your api url
   - `export API_URI=<your api url>`

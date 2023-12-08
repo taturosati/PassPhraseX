@@ -45,7 +45,7 @@ impl StorageSecretKey {
         }
     }
 
-    pub fn generate(device_password: String) -> anyhow::Result<(Self, String, KeyPair)> {
+    pub async fn generate(device_password: String) -> anyhow::Result<(Self, String, KeyPair)> {
         let salt = generate_salt()?;
         let pass_hash = hash(&device_password, &salt)?;
 
@@ -56,6 +56,9 @@ impl StorageSecretKey {
         let secret_key = hex::encode(enc_sk.as_slice());
 
         let public_key = key_pair.get_pk();
+
+        let api = Api::new(key_pair.clone());
+        api.create_user(public_key.clone()).await?;
 
         Ok((
             Self::new(Some(public_key), Some(secret_key), Some(salt)),
@@ -173,6 +176,17 @@ impl StorageCredentialsAction {
                 StorageCredentials::remove().await?;
                 Ok(())
             }
+        }
+    }
+
+    pub async fn execute_without_api(self) -> anyhow::Result<()> {
+        match self {
+            StorageCredentialsAction::Logout => {
+                StorageSecretKey::remove().await?;
+                StorageCredentials::remove().await?;
+                Ok(())
+            }
+            _ => Err(anyhow!("Cannot execute action without API")),
         }
     }
 }

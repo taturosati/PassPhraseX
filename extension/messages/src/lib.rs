@@ -135,6 +135,9 @@ pub type AppResponse = Response<AppResponsePayload>;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PortRequestPayload {
     GetCredential { site: String },
+    SetTmpCredentialUsername { site: String, username: String },
+    SetTmpCredentialPassword { site: String, password: String },
+    StoreTmpCredential { site: String },
 }
 
 pub type PortRequest = Request<PortRequestPayload>;
@@ -143,6 +146,7 @@ pub type PortRequest = Request<PortRequestPayload>;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PortResponsePayload {
     Credential { username: String, password: String },
+    Ok,
     Error(String),
 }
 

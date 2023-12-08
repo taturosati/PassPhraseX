@@ -14,6 +14,7 @@ use web_extensions_sys::Port;
 pub struct UnlockedAppData {
     key_pair: KeyPair,
     credentials_map: CredentialsMap,
+    tmp_credentials: HashMap<String, (String, String)>,
     api: Api,
 }
 
@@ -31,6 +32,7 @@ impl AppData {
         Self::Unlocked(UnlockedAppData {
             key_pair,
             credentials_map,
+            tmp_credentials: HashMap::new(),
             api,
         })
     }
@@ -206,8 +208,13 @@ impl App {
         match &mut self.app_data {
             AppData::Locked => Err(anyhow!("Not Logged In")),
             AppData::Unlocked(app_data) => {
+                if username.is_empty() || site.is_empty() {
+                    return Err(anyhow!("Username & site cannot be empty"));
+                }
+
                 let password_id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
                 let user_id = app_data.key_pair.get_pk();
+
                 let password = Password {
                     _id: password_id.clone(),
                     user_id,
@@ -215,6 +222,7 @@ impl App {
                     username,
                     password,
                 };
+
                 let password = password.encrypt(&app_data.key_pair);
                 app_data
                     .credentials_map
@@ -224,6 +232,7 @@ impl App {
 
                 let action =
                     StorageCredentialsAction::Add(app_data.credentials_map.clone(), password);
+
                 Ok(action)
             }
         }
@@ -261,6 +270,49 @@ impl App {
         }
     }
 
+    pub fn add_or_edit_credential(
+        &mut self,
+        site: String,
+        username: String,
+        password: String,
+    ) -> anyhow::Result<StorageCredentialsAction> {
+        match &self.app_data {
+            AppData::Locked => Err(anyhow!("Not Logged In")),
+            AppData::Unlocked(app_data) => {
+                let site_map = app_data.credentials_map.get(&site);
+
+                if password.is_empty() {
+                    return Err(anyhow!("Password cannot be empty"));
+                }
+
+                match site_map {
+                    Some(site_map) => match site_map.values().next() {
+                        Some(pass) => {
+                            let password_id = pass._id.clone();
+                            self.edit_credential(site, password_id, password)
+                        }
+                        None => self.add_credential(site, username, password),
+                    },
+                    None => self.add_credential(site, username, password),
+                }
+
+                //
+                //
+                //
+                // let has_password = app_data
+                //     .credentials_map
+                //     .get(&site)
+                //     .map_or(false, |map| map.contains_key(&password_id));
+                //
+                // if has_password {
+                //     self.edit_credential(site, password_id, password)
+                // } else {
+                //     self.add_credential(site, username, password)
+                // }
+            }
+        }
+    }
+
     pub fn delete_credential(
         &mut self,
         site: String,
@@ -279,6 +331,61 @@ impl App {
                 let action =
                     StorageCredentialsAction::Delete(app_data.credentials_map.clone(), password);
                 Ok(action)
+            }
+        }
+    }
+
+    pub fn set_tmp_credential_username(
+        &mut self,
+        site: String,
+        username: String,
+    ) -> anyhow::Result<()> {
+        match &mut self.app_data {
+            AppData::Locked => Err(anyhow!("Not Logged In")),
+            AppData::Unlocked(app_data) => {
+                let mut password = "".to_string();
+                if let Some((_, p)) = app_data.tmp_credentials.get(&site) {
+                    password = p.clone();
+                }
+                app_data.tmp_credentials.insert(site, (username, password));
+
+                Ok(())
+            }
+        }
+    }
+
+    pub fn set_tmp_credential_password(
+        &mut self,
+        site: String,
+        password: String,
+    ) -> anyhow::Result<()> {
+        match &mut self.app_data {
+            AppData::Locked => Err(anyhow!("Not Logged In")),
+            AppData::Unlocked(app_data) => {
+                let mut username = "".to_string();
+                if let Some((u, _)) = app_data.tmp_credentials.get(&site) {
+                    username = u.clone();
+                }
+                app_data.tmp_credentials.insert(site, (username, password));
+
+                Ok(())
+            }
+        }
+    }
+
+    pub fn store_tmp_credential(
+        &mut self,
+        site: String,
+    ) -> anyhow::Result<StorageCredentialsAction> {
+        match &mut self.app_data {
+            AppData::Locked => Err(anyhow!("Not Logged In")),
+            AppData::Unlocked(app_data) => {
+                let (username, password) = app_data
+                    .tmp_credentials
+                    .remove(&site)
+                    .ok_or(anyhow!("No tmp credential found"))?;
+
+                self.add_or_edit_credential(site, username, password)
             }
         }
     }

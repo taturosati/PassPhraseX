@@ -179,13 +179,13 @@ fn on_connect_port(app: &Rc<RefCell<App>>, port: Port) {
         console::error!("Failed to connect new port", &port);
         return;
     };
+
     let on_message = {
         let app = Rc::clone(app);
-        move |request| {
-            on_port_message(&app, port_id, request);
-        }
+        move |request| on_port_message(&app, port_id, request)
     };
-    let closure: Closure<dyn Fn(JsValue)> = Closure::new(on_message);
+
+    let closure: Closure<dyn Fn(JsValue) -> bool> = Closure::new(on_message);
     port.on_message()
         .add_listener(closure.as_ref().unchecked_ref());
     closure.forget();
@@ -217,15 +217,23 @@ fn on_port_message(app: &Rc<RefCell<App>>, port_id: PortId, request: JsValue) ->
             return true;
         }
     };
-    if let Some(response) = on_port_request(app, port_id, request_id, request) {
-        if let Err(err) = app.borrow().post_port_message_js(port_id, &response) {
-            console::warn!(
-                "Failed to post response message to port",
-                port_id,
-                response,
-                err.to_string()
-            );
-        }
+
+    {
+        let app = app.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let future = on_port_request(&app, port_id, request_id, request);
+
+            if let Some(response) = future.await {
+                if let Err(err) = app.borrow().post_port_message_js(port_id, &response) {
+                    console::warn!(
+                        "Failed to post response message to port",
+                        port_id,
+                        response,
+                        err.to_string()
+                    );
+                }
+            }
+        });
     }
 
     true // Need to return true to be able to use async stuff
@@ -250,7 +258,7 @@ async fn on_request(
         .ok()
 }
 
-fn on_port_request(
+async fn on_port_request(
     app: &Rc<RefCell<App>>,
     port_id: PortId,
     request_id: RequestId,
@@ -265,7 +273,7 @@ fn on_port_request(
             );
         })
         .ok()?;
-    let response = handle_port_request(app, port_id, request_id, request);
+    let response = handle_port_request(app, port_id, request_id, request).await;
     JsValue::from_serde(&response)
         .map_err(|err| {
             console::error!(
@@ -311,8 +319,6 @@ async fn handle_app_request(
     request_id: RequestId,
     request: AppRequest,
 ) -> Option<AppResponse> {
-    // StorageSecretKey::remove().await.unwrap();
-    // StorageCredentials::remove().await.unwrap();
     let Request { header, payload } = request;
     let payload: AppResponsePayload = match payload {
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {
@@ -367,7 +373,7 @@ async fn handle_app_request(
             },
         },
         AppRequestPayload::Register { device_password } => {
-            match StorageSecretKey::generate(device_password) {
+            match StorageSecretKey::generate(device_password).await {
                 Ok((sk, seed_phrase, key_pair)) => match auth(app, sk, key_pair).await {
                     AppResponsePayload::Auth { error: None } => {
                         AppResponsePayload::SeedPhrase(seed_phrase)
@@ -385,15 +391,9 @@ async fn handle_app_request(
             }
         }
         AppRequestPayload::Logout {} => {
-            let api = match app.borrow().get_api() {
-                Ok(api) => api.clone(),
-                Err(err) => {
-                    console::error!("Failed to get API", err.to_string());
-                    return None; // TODO: Error
-                }
-            };
             let logout_action = app.borrow_mut().logout();
-            match logout_action.execute(&api).await {
+
+            match logout_action.execute_without_api().await {
                 Ok(()) => AppResponsePayload::Ok,
                 Err(err) => AppResponsePayload::Error {
                     message: err.to_string(),
@@ -493,7 +493,7 @@ enum StreamingTaskError {
 /// Optionally returns a single response.
 ///
 /// TODO: Extract into domain crate
-fn handle_port_request(
+async fn handle_port_request(
     app: &Rc<RefCell<App>>,
     _port_id: PortId,
     request_id: RequestId,
@@ -506,6 +506,44 @@ fn handle_port_request(
                 Ok((username, password)) => PortResponsePayload::Credential { username, password },
                 Err(err) => {
                     console::error!("Failed to get credential", err.to_string());
+                    PortResponsePayload::Error(err.to_string())
+                }
+            }
+        }
+        PortRequestPayload::SetTmpCredentialUsername { site, username } => {
+            match app.borrow_mut().set_tmp_credential_username(site, username) {
+                Ok(()) => PortResponsePayload::Ok,
+                Err(err) => {
+                    console::error!("Failed to set tmp credential username", err.to_string());
+                    PortResponsePayload::Error(err.to_string())
+                }
+            }
+        }
+        PortRequestPayload::SetTmpCredentialPassword { site, password } => {
+            match app.borrow_mut().set_tmp_credential_password(site, password) {
+                Ok(()) => PortResponsePayload::Ok,
+                Err(err) => {
+                    console::error!("Failed to set tmp credential password", err.to_string());
+                    PortResponsePayload::Error(err.to_string())
+                }
+            }
+        }
+        PortRequestPayload::StoreTmpCredential { site } => {
+            let result = { app.borrow_mut().store_tmp_credential(site) };
+
+            match result {
+                Ok(action) => {
+                    let result = execute_storage_credentials_action(app, action).await;
+                    match result {
+                        Ok(()) => PortResponsePayload::Ok,
+                        Err(err) => {
+                            console::error!("Failed to store tmp credential", err.to_string());
+                            PortResponsePayload::Error(err.to_string())
+                        }
+                    }
+                }
+                Err(err) => {
+                    console::error!("Failed to store tmp credential", err.to_string());
                     PortResponsePayload::Error(err.to_string())
                 }
             }
