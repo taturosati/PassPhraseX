@@ -16,5 +16,9 @@ fi
 # Start nginx
 nginx -g "daemon off;"
 
-# keep container running
-tail -f /dev/null
+# keep container running & renew certificate
+while :; do
+    certbot renew
+    sleep 12h
+done
+
