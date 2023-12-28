@@ -18,7 +18,7 @@ nginx -g "daemon off;"
 
 # keep container running & renew certificate
 while :; do
-    certbot renew
+    certbot renew --standalone --non-interactive
     sleep 12h
 done
 
