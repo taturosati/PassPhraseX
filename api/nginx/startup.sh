@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Check if certificate does not exist
+# # Check if certificate does not exist
 if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
     # Get certificate
     certbot certonly \

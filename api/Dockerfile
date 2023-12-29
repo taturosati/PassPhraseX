@@ -1,8 +1,8 @@
-FROM rust:alpine
+FROM rust
 LABEL authors="srosati"
 
-RUN apk update
-RUN apk add --no-cache openssl openssl-dev musl-dev pkgconfig
+RUN apt update
+RUN apt install libssl-dev
 
 COPY ./common /usr/src/common
 COPY ./api /usr/src/api
