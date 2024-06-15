@@ -48,8 +48,7 @@ pub fn encrypt_data(key: &str, data: &[u8]) -> anyhow::Result<Vec<u8>> {
     let mut enc: Vec<u8> = Vec::new();
 
     data.chunks_exact(block_size)
-        .enumerate()
-        .for_each(|(_, chunk)| {
+        .for_each(|chunk| {
             let mut chunk = *GenericArray::from_slice(chunk);
             aes.encrypt_block(&mut chunk);
             enc.append(&mut chunk.as_slice().to_vec());
@@ -70,8 +69,7 @@ pub fn decrypt_data(key: &str, enc: Vec<u8>) -> anyhow::Result<Vec<u8>> {
     let mut dec: Vec<u8> = Vec::new();
 
     enc.chunks_exact(block_size)
-        .enumerate()
-        .for_each(|(_, chunk)| {
+        .for_each(|chunk| {
             let mut chunk = *GenericArray::from_slice(chunk);
             aes.decrypt_block(&mut chunk);
             dec.append(&mut chunk.as_slice().to_vec());

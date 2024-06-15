@@ -114,7 +114,7 @@ impl KeyPair {
             .encrypt(&mut thread_rng(), rsa::Pkcs1v15Encrypt, message.as_bytes())
             .expect("Failed to encrypt");
 
-        URL_SAFE.encode(&enc)
+        URL_SAFE.encode(enc)
     }
 
     pub fn decrypt(&self, enc: &String) -> String {
@@ -187,7 +187,7 @@ pub fn verify(
         .map_err(|_| anyhow::format_err!("Failed to convert to signature"))?;
 
     verifying_key
-        .verify(&data, &signature)
+        .verify(data, &signature)
         .map_err(|err| anyhow::format_err!("Failed to verify: {}", err))?;
 
     Ok(())

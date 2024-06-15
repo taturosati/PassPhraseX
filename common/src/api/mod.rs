@@ -151,7 +151,7 @@ async fn validate_response(res: Response, status_code: StatusCode) -> anyhow::Re
     Ok(())
 }
 
-pub fn verify_auth_token(public_key: &String, token: &str) -> anyhow::Result<()> {
+pub fn verify_auth_token(public_key: &str, token: &str) -> anyhow::Result<()> {
     let (time, signature) = token.split_once(';').ok_or(format_err!("Invalid token"))?;
     let time = time.parse::<u64>()?;
     let now = SystemTime::now()
@@ -164,7 +164,7 @@ pub fn verify_auth_token(public_key: &String, token: &str) -> anyhow::Result<()>
     }
 
     let signature = URL_SAFE.decode(signature.as_bytes())?;
-    let verifying_key = verifying_key_from_base64(&public_key)?;
+    let verifying_key = verifying_key_from_base64(public_key)?;
     match verify(verifying_key, time.to_string().as_bytes(), signature.as_slice()) {
         Ok(_) => (),
         Err(err) => {

@@ -14,12 +14,12 @@ impl From<String> for EncryptedValue {
 
 impl From<EncryptedValue> for String {
     fn from(value: EncryptedValue) -> Self {
-        format!("{}", value.cipher)
+        value.cipher.to_string()
     }
 }
 
 impl Display for EncryptedValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.cipher)
+        self.cipher.fmt(f)
     }
 }
