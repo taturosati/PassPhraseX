@@ -92,19 +92,20 @@ impl KeyPair {
         })
     }
 
-    pub fn from_sk(sk: &[u8], password: &str) -> KeyPair {
+    pub fn try_from_sk(sk: &[u8], password: &str) -> anyhow::Result<KeyPair> {
         let private_key = RsaPrivateKey::from_pkcs8_encrypted_der(sk, password)
-            .expect("Failed to create private key");
+            .map_err(|_| anyhow::format_err!("Invalid device password"))?;
+
         let public_key = private_key.to_public_key();
         let signing_key = SigningKey::from(private_key.clone());
         let verifying_key = VerifyingKey::from(public_key.clone());
 
-        KeyPair {
+        Ok(KeyPair {
             private_key,
             public_key,
             signing_key,
             verifying_key,
-        }
+        })
     }
 
     pub fn encrypt(&self, message: &str) -> String {

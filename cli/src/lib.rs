@@ -73,7 +73,7 @@ async fn sync_with_api(api: Api, key_pair: KeyPair) -> anyhow::Result<Credential
 impl App {
     pub async fn new(device_pass: &str) -> anyhow::Result<App> {
         let sk_enc = read_sk()?;
-        let key_pair = KeyPair::from_sk(sk_enc.as_slice(), device_pass);
+        let key_pair = KeyPair::try_from_sk(sk_enc.as_slice(), device_pass)?;
 
         let api = Api::new(key_pair.clone());
 
