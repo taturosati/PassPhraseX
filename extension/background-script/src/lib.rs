@@ -12,7 +12,6 @@ use messages::{
     PortRequestPayload, PortResponse, PortResponsePayload, Request, RequestId, Response,
     INITIAL_REQUEST_ID,
 };
-use serde::Serialize;
 use thiserror::Error;
 use wasm_bindgen::{prelude::*, JsCast};
 
@@ -555,34 +554,4 @@ async fn handle_port_request(
         header: header.into_response(request_id),
         payload,
     }
-}
-
-// https://developer.chrome.com/docs/extensions/reference/scripting/#type-CSSInjection
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CssInjection<'a> {
-    target: InjectionTarget<'a>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    css: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    files: Option<&'a [&'a str]>,
-}
-
-// https://developer.chrome.com/docs/extensions/reference/scripting/#type-ScriptInjection
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ScriptInjection<'a> {
-    target: InjectionTarget<'a>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    files: Option<&'a [&'a str]>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct InjectionTarget<'a> {
-    tab_id: TabId,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    all_frames: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    frame_ids: Option<&'a [i32]>,
 }

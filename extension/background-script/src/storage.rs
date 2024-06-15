@@ -31,10 +31,7 @@ impl TryInto<Object> for StorageSecretKey {
 }
 
 impl StorageSecretKey {
-    pub fn new(
-        public_key: Option<String>,
-        secret_key: Option<Vec<u8>>,
-    ) -> Self {
+    pub fn new(public_key: Option<String>, secret_key: Option<Vec<u8>>) -> Self {
         Self {
             public_key,
             secret_key,
@@ -68,10 +65,7 @@ impl StorageSecretKey {
         let secret_key = key_pair.get_sk(&device_password);
         let public_key = key_pair.get_pk();
 
-        Ok((
-            Self::new(Some(public_key), Some(secret_key)),
-            key_pair,
-        ))
+        Ok((Self::new(Some(public_key), Some(secret_key)), key_pair))
     }
 
     pub async fn load() -> anyhow::Result<Self> {

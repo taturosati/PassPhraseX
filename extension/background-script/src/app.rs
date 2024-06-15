@@ -336,7 +336,7 @@ impl App {
             AppData::Unlocked(app_data) => {
                 let mut password = "".to_string();
                 if let Some((_, p)) = app_data.tmp_credentials.get(&site) {
-                    password = p.clone();
+                    password.clone_from(p);
                 }
                 app_data.tmp_credentials.insert(site, (username, password));
 
@@ -355,7 +355,7 @@ impl App {
             AppData::Unlocked(app_data) => {
                 let mut username = "".to_string();
                 if let Some((u, _)) = app_data.tmp_credentials.get(&site) {
-                    username = u.clone();
+                    username.clone_from(u);
                 }
                 app_data.tmp_credentials.insert(site, (username, password));
 
