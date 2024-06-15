@@ -170,5 +170,6 @@ pub fn verify_auth_token(verifying_key: &str, token: &str) -> anyhow::Result<()>
         verifying_key,
         time.to_string().as_bytes(),
         signature.as_slice(),
-    ).map_err(|err| format_err!("Failed to verify: {}", err))
+    )
+    .map_err(|err| format_err!("Failed to verify: {}", err))
 }

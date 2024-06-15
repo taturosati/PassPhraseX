@@ -1,9 +1,10 @@
 use base64::{engine::general_purpose::URL_SAFE, Engine};
+use bip32::secp256k1::ecdsa::signature::Keypair;
 use bip32::secp256k1::sha2::Sha256;
 use bip32::{ChildNumber, Mnemonic, XPrv};
 use crypto_box::aead::OsRng;
 use crypto_box::PublicKey;
-use pkcs8::{EncodePrivateKey};
+use pkcs8::EncodePrivateKey;
 use rand::thread_rng;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -13,7 +14,6 @@ use rsa::pkcs8::DecodePrivateKey;
 use rsa::signature::{RandomizedSigner, SignatureEncoding, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::str;
-use bip32::secp256k1::ecdsa::signature::Keypair;
 
 #[derive(Clone)]
 pub struct SeedPhrase {
