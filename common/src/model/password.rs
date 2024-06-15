@@ -1,5 +1,4 @@
 use crate::crypto::asymmetric::KeyPair;
-use crate::crypto::common::EncryptedValue;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,11 +22,8 @@ impl Password {
     }
 
     pub fn decrypt(&self, key_pair: &KeyPair) -> Self {
-        let username_enc = EncryptedValue::from(self.username.clone());
-        let username_dec = key_pair.decrypt(&username_enc);
-
-        let password_enc = EncryptedValue::from(self.password.clone());
-        let password_dec = key_pair.decrypt(&password_enc);
+        let username_dec = key_pair.decrypt(&self.username);
+        let password_dec = key_pair.decrypt(&self.password);
 
         let mut password = self.clone();
         password.username = username_dec;

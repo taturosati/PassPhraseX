@@ -1,10 +1,18 @@
-use crate::crypto::common::EncryptedValue;
-use crate::crypto::symmetric::hash;
 use base64::{engine::general_purpose::URL_SAFE, Engine};
+use bip32::secp256k1::sha2::Sha256;
 use bip32::{Mnemonic, XPrv};
-use crypto_box::aead::{Aead, AeadCore, OsRng, Payload};
-use crypto_box::{ChaChaBox, Nonce, PublicKey, SecretKey};
+use crypto_box::aead::OsRng;
+use crypto_box::PublicKey;
+use rand::thread_rng;
+use rand_chacha::ChaCha20Rng;
+use rand_core::SeedableRng;
+use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey};
+use rsa::pkcs1v15::{Signature, SigningKey, VerifyingKey};
+use rsa::pkcs8::DecodePrivateKey;
+use rsa::signature::{RandomizedSigner, SignatureEncoding, Verifier};
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::str;
+use pkcs8::EncodePrivateKey;
 
 #[derive(Clone)]
 pub struct SeedPhrase {
@@ -38,8 +46,10 @@ impl From<String> for SeedPhrase {
 
 #[derive(Clone)]
 pub struct KeyPair {
-    pub private_key: SecretKey,
-    pub public_key: PublicKey,
+    pub private_key: RsaPrivateKey,
+    pub public_key: RsaPublicKey,
+    pub signing_key: SigningKey<Sha256>,
+    pub verifying_key: VerifyingKey<Sha256>,
 }
 
 /*
@@ -63,94 +73,101 @@ impl KeyPair {
         let derived_sk =
             XPrv::new(&seed).map_err(|_| anyhow::format_err!("Failed to derive sk"))?;
 
-        // Convert the `XPrv` to a `SecretKey` and `PublicKey`
-        let private_key = SecretKey::from(derived_sk.to_bytes());
-        let public_key = private_key.public_key();
+        let priv_attrs = derived_sk.attrs();
+        let chain_code: [u8; 32] = priv_attrs.chain_code;
+        let mut seed = ChaCha20Rng::from_seed(chain_code);
+        let private_key = RsaPrivateKey::new(&mut seed, 2048)
+            .map_err(|_| anyhow::format_err!("Failed to create private key"))?;
+
+        let public_key = RsaPublicKey::from(&private_key);
+
+        let signing_key = SigningKey::from(private_key.clone());
+        let verifying_key = VerifyingKey::from(public_key.clone());
 
         Ok(KeyPair {
             private_key,
             public_key,
+            signing_key,
+            verifying_key,
         })
     }
 
-    pub fn from_sk(sk: [u8; 32]) -> KeyPair {
-        let private_key = SecretKey::from(sk);
-        let public_key = private_key.public_key();
+    pub fn from_sk(sk: &[u8], password: &str) -> KeyPair {
+        let private_key = RsaPrivateKey::from_pkcs8_encrypted_der(sk, password)
+            .expect("Failed to create private key");
+        let public_key = private_key.to_public_key();
+        let signing_key = SigningKey::from(private_key.clone());
+        let verifying_key = VerifyingKey::from(public_key.clone());
+
         KeyPair {
             private_key,
             public_key,
+            signing_key,
+            verifying_key,
         }
     }
 
-    pub fn encrypt(&self, message: &str) -> EncryptedValue {
-        let nonce = ChaChaBox::generate_nonce(&mut OsRng);
+    pub fn encrypt(&self, message: &str) -> String {
+        let enc = self
+            .public_key
+            .encrypt(&mut thread_rng(), rsa::Pkcs1v15Encrypt, message.as_bytes())
+            .expect("Failed to encrypt");
 
-        let personal_box = ChaChaBox::new(&self.public_key, &self.private_key);
-        let enc = personal_box
-            .encrypt(
-                &nonce,
-                Payload {
-                    msg: message.as_bytes(),
-                    aad: b"",
-                },
-            )
-            .unwrap();
-        EncryptedValue {
-            cipher: URL_SAFE.encode(enc),
-            nonce: URL_SAFE.encode(nonce),
-        }
+        URL_SAFE.encode(&enc)
     }
 
-    pub fn decrypt(&self, enc: &EncryptedValue) -> String {
-        let cipher = URL_SAFE.decode(enc.cipher.as_bytes()).unwrap();
-        let personal_box = ChaChaBox::new(&self.public_key, &self.private_key);
+    pub fn decrypt(&self, enc: &String) -> String {
+        let cipher = URL_SAFE.decode(enc.as_bytes()).expect("Failed to decode");
+        let dec = self
+            .private_key
+            .decrypt(rsa::Pkcs1v15Encrypt, &cipher)
+            .expect("Failed to decrypt");
 
-        let nonce = URL_SAFE
-            .decode(enc.nonce.as_bytes())
-            .expect("Failed to decode nonce");
-        let mut content: [u8; 24] = [0; 24];
-        content.copy_from_slice(&nonce);
-        let dec = personal_box
-            .decrypt(
-                &Nonce::from(content),
-                Payload {
-                    msg: cipher.as_slice(),
-                    aad: b"",
-                },
-            )
-            .unwrap();
-
-        str::from_utf8(&dec).unwrap().to_owned()
+        String::from_utf8(dec).unwrap()
     }
 
-    pub fn sign(&self, message: &str) -> EncryptedValue {
-        let nonce = ChaChaBox::generate_nonce(&mut OsRng);
-        let verifiable_box =
-            ChaChaBox::new(&SecretKey::from([0; 32]).public_key(), &self.private_key);
-        let enc = verifiable_box
-            .encrypt(
-                &nonce,
-                Payload {
-                    msg: message.as_bytes(),
-                    aad: b"",
-                },
-            )
-            .unwrap();
-        EncryptedValue {
-            cipher: URL_SAFE.encode(enc),
-            nonce: URL_SAFE.encode(nonce),
-        }
-    }
-
-    pub fn hash(&self, message: &str) -> anyhow::Result<String> {
-        Ok(hash(message, &URL_SAFE.encode(&self.public_key))
-            .map_err(|_| anyhow::format_err!("Failed to hash"))?
-            .cipher)
+    pub fn sign(&self, message: &str) -> Vec<u8> {
+        let signature = self
+            .signing_key
+            .sign_with_rng(&mut thread_rng(), message.as_bytes());
+        signature.to_vec()
     }
 
     pub fn get_pk(&self) -> String {
-        URL_SAFE.encode(&self.public_key)
+        let pk_bytes = self
+            .public_key
+            .to_pkcs1_der()
+            .expect("Failed to convert to pkcs1 der");
+
+        URL_SAFE.encode(pk_bytes.as_bytes())
     }
+
+    pub fn get_sk(&self, password: &str) -> Vec<u8> {
+        let enc = self.private_key
+            .to_pkcs8_encrypted_der(OsRng, password)
+            .expect("Failed to convert to pkcs8 pem");
+
+        enc.to_bytes().to_vec()
+    }
+
+    pub fn hash(&self, message: &str) -> String {
+        let signature = self
+            .signing_key
+            .sign_with_rng(&mut thread_rng(), message.as_bytes());
+
+        signature.to_string()
+    }
+}
+
+pub fn verifying_key_from_base64(vk: &str) -> anyhow::Result<VerifyingKey<Sha256>> {
+    let pk_bytes = URL_SAFE
+        .decode(vk.as_bytes())
+        .map_err(|_| anyhow::format_err!("Failed to decode"))?;
+
+    let public_key = RsaPublicKey::from_pkcs1_der(pk_bytes.as_slice())
+        .map_err(|_| anyhow::format_err!("Failed to convert to verifying key"))?;
+
+    Ok(VerifyingKey::from(public_key))
 }
 
 pub fn public_key_from_base64(pk: &str) -> PublicKey {
@@ -160,21 +177,17 @@ pub fn public_key_from_base64(pk: &str) -> PublicKey {
     PublicKey::from(buff)
 }
 
-pub fn verify(public_key: &PublicKey, value: EncryptedValue) -> anyhow::Result<String> {
-    let verifiable_box = ChaChaBox::new(public_key, &SecretKey::from([0; 32]));
+pub fn verify(
+    verifying_key: VerifyingKey<Sha256>,
+    data: &[u8],
+    signature: &[u8],
+) -> anyhow::Result<()> {
+    let signature = Signature::try_from(signature)
+        .map_err(|_| anyhow::format_err!("Failed to convert to signature"))?;
 
-    let nonce = URL_SAFE.decode(value.nonce.as_bytes())?;
-    let mut content: [u8; 24] = [0; 24];
-    content.copy_from_slice(&nonce);
+    verifying_key
+        .verify(&data, &signature)
+        .map_err(|err| anyhow::format_err!("Failed to verify: {}", err))?;
 
-    let cipher = URL_SAFE.decode(value.cipher.as_bytes())?;
-    let payload = Payload {
-        msg: cipher.as_slice(),
-        aad: b"",
-    };
-
-    match verifiable_box.decrypt(&Nonce::from(content), payload) {
-        Ok(dec) => Ok(str::from_utf8(&dec)?.to_owned()),
-        Err(_) => Err(anyhow::format_err!("Failed to decrypt")),
-    }
+    Ok(())
 }

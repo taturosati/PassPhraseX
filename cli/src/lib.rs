@@ -1,18 +1,15 @@
-mod api;
 mod file;
 
 use anyhow::format_err;
+use passphrasex_common::api::Api;
 use std::collections::HashMap;
 use std::string::String;
 
 use app_dirs2::AppInfo;
 
-use crate::file::{
-    read_app_data, read_password_hash, read_sk, write_app_data, write_password_hash, write_sk,
-};
-use api::Api;
+use crate::file::{read_app_data, read_sk, write_app_data, write_sk};
+
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
-use passphrasex_common::crypto::symmetric::{encrypt_data, generate_salt, hash, verify_password};
 use passphrasex_common::model::password::Password;
 
 pub const APP_INFO: AppInfo = AppInfo {
@@ -30,21 +27,12 @@ pub struct App {
 }
 
 pub async fn register(device_pass: &str) -> anyhow::Result<SeedPhrase> {
-    let salt = generate_salt()?;
-    let pass_hash = hash(device_pass, &salt)?;
-
     let seed_phrase = SeedPhrase::new();
     let key_pair = KeyPair::new(seed_phrase.clone());
 
     let api = Api::new(key_pair.clone());
 
-    write_password_hash(&pass_hash)?;
-
-    let enc = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
-
-    let mut sk_bytes: [u8; 32] = [0; 32];
-    sk_bytes.copy_from_slice(enc.as_slice());
-    write_sk(key_pair.private_key.as_bytes(), &pass_hash.cipher)?;
+    write_sk(key_pair.get_sk(device_pass))?;
 
     write_app_data(&HashMap::new())?;
 
@@ -54,17 +42,12 @@ pub async fn register(device_pass: &str) -> anyhow::Result<SeedPhrase> {
 }
 
 pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> anyhow::Result<()> {
-    let salt = generate_salt()?;
-    let pass_hash = hash(device_pass, &salt)?;
-
     let seed_phrase = SeedPhrase::from(seed_phrase.to_string());
     let key_pair = KeyPair::new(seed_phrase.clone());
 
     let api = Api::new(key_pair.clone());
 
-    write_password_hash(&pass_hash)?;
-
-    write_sk(key_pair.private_key.as_bytes(), &pass_hash.cipher)?;
+    write_sk(key_pair.get_sk(device_pass))?;
 
     sync_with_api(api, key_pair.clone()).await?;
 
@@ -89,11 +72,8 @@ async fn sync_with_api(api: Api, key_pair: KeyPair) -> anyhow::Result<Credential
 
 impl App {
     pub async fn new(device_pass: &str) -> anyhow::Result<App> {
-        let pass_hash = read_password_hash()?;
-        verify_password(device_pass, &pass_hash.cipher, &pass_hash.nonce)?;
-
-        let private_key = read_sk(&pass_hash.cipher)?;
-        let key_pair = KeyPair::from_sk(private_key);
+        let sk_enc = read_sk()?;
+        let key_pair = KeyPair::from_sk(sk_enc.as_slice(), device_pass);
 
         let api = Api::new(key_pair.clone());
 
@@ -119,7 +99,7 @@ impl App {
 
         let user_id = self.key_pair.get_pk();
 
-        let password_id = self.key_pair.hash(&format!("{}{}", site, username))?;
+        let password_id = self.key_pair.hash(&format!("{}{}", site, username));
 
         let password = Password {
             _id: password_id.clone(),
@@ -149,7 +129,7 @@ impl App {
         match self.credentials.get(&site) {
             Some(passwords) => match username {
                 Some(username) => {
-                    let id = self.key_pair.hash(&format!("{}{}", site, username))?;
+                    let id = self.key_pair.hash(&format!("{}{}", site, username));
                     let password = passwords
                         .get(&id)
                         .ok_or(format_err!("Password not found"))?;
@@ -178,7 +158,7 @@ impl App {
         self.verify_credentials_exist(&site, &username)?;
 
         let user_id = self.key_pair.get_pk();
-        let password_id = self.key_pair.hash(&format!("{}{}", site, username))?;
+        let password_id = self.key_pair.hash(&format!("{}{}", site, username));
 
         let password_enc = self.key_pair.encrypt(&password);
         self.api
@@ -200,7 +180,7 @@ impl App {
         self.verify_credentials_exist(&site, &username)?;
 
         let user_id = self.key_pair.get_pk();
-        let password_id = self.key_pair.hash(&format!("{}{}", site, username))?;
+        let password_id = self.key_pair.hash(&format!("{}{}", site, username));
 
         self.api
             .delete_password(user_id, password_id.clone())
@@ -219,7 +199,7 @@ impl App {
     fn verify_credentials_exist(&self, site: &str, username: &str) -> anyhow::Result<()> {
         match self.credentials.get(site) {
             Some(passwords) => {
-                let id = self.key_pair.hash(&format!("{}{}", site, username))?;
+                let id = self.key_pair.hash(&format!("{}{}", site, username));
                 passwords
                     .get(&id)
                     .ok_or(format_err!("Credentials not found"))?;

@@ -38,7 +38,6 @@ async fn main() {
             password_service: PasswordService::new(&client, user_service),
         });
 
-    // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().expect("Failed to parse address"))
         .serve(app.into_make_service())
         .await

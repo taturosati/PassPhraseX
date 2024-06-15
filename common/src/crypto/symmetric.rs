@@ -1,23 +1,12 @@
-use crate::crypto::common::EncryptedValue;
 use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, BlockSizeUser};
 use aes::Aes256;
 use anyhow::format_err;
-use argon2::{self, hash_raw, verify_raw, Config};
+use argon2::{self, verify_raw, Config};
 use crypto_box::aead::KeyInit;
 
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 use rand_core::{OsRng, RngCore};
-pub fn hash(message: &str, salt: &str) -> anyhow::Result<EncryptedValue> {
-    let config = Config::default();
-    let salt = URL_SAFE.decode(salt)?;
-
-    let hash = hash_raw(message.as_bytes(), salt.as_slice(), &config)?;
-    Ok(EncryptedValue {
-        cipher: URL_SAFE.encode(hash),
-        nonce: URL_SAFE.encode(salt),
-    })
-}
 
 pub fn verify_password(password: &str, hash: &str, salt: &str) -> anyhow::Result<()> {
     let hash = URL_SAFE.decode(hash)?;

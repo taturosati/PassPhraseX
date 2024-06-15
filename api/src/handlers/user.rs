@@ -22,6 +22,7 @@ impl UserController {
             router: router.merge(password_router),
         }
     }
+
     pub async fn create_user(
         State(state): State<AppData>,
         Json(payload): Json<User>,

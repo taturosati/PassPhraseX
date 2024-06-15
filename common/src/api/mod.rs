@@ -1,9 +1,11 @@
 mod time;
 
 // Wrapper functions to call api
-use crate::crypto::asymmetric::KeyPair;
+use crate::crypto::asymmetric::{KeyPair, verify, verifying_key_from_base64};
 use crate::model::password::Password;
 use anyhow::format_err;
+use base64::engine::general_purpose::URL_SAFE;
+use base64::Engine;
 use reqwest::{Client, Response, StatusCode, Url};
 use std::collections::HashMap;
 use std::env;
@@ -131,9 +133,12 @@ impl Api {
     fn auth_token(&self) -> String {
         let time = SystemTime::now()
             .duration_since(time::UNIX_EPOCH)
-            .unwrap()
+            .expect("Time went backwards")
             .as_secs();
-        self.key_pair.sign(&time.to_string()).to_string()
+
+        let signature = self.key_pair.sign(&time.to_string());
+        let signature = URL_SAFE.encode(signature);
+        format!("{};{}", time, signature)
     }
 }
 
@@ -141,6 +146,31 @@ async fn validate_response(res: Response, status_code: StatusCode) -> anyhow::Re
     if res.status() != status_code {
         let text = res.text().await?;
         return Err(format_err!("Error from API: {}", text));
+    }
+
+    Ok(())
+}
+
+pub fn verify_auth_token(public_key: &String, token: &str) -> anyhow::Result<()> {
+    let (time, signature) = token.split_once(';').ok_or(format_err!("Invalid token"))?;
+    let time = time.parse::<u64>()?;
+    let now = SystemTime::now()
+        .duration_since(time::UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+
+    if now - time > 60 {
+        return Err(format_err!("Token expired"));
+    }
+
+    let signature = URL_SAFE.decode(signature.as_bytes())?;
+    let verifying_key = verifying_key_from_base64(&public_key)?;
+    match verify(verifying_key, time.to_string().as_bytes(), signature.as_slice()) {
+        Ok(_) => (),
+        Err(err) => {
+            println!("{:?}", err);
+            return Err(format_err!("Invalid token: {}", err));
+        }
     }
 
     Ok(())

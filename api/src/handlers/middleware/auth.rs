@@ -4,12 +4,8 @@ use axum::http::{Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::RequestPartsExt;
-use passphrasex_common::crypto::asymmetric::{public_key_from_base64, verify};
-use passphrasex_common::crypto::common::EncryptedValue;
 use std::collections::HashMap;
-use std::time::SystemTime;
-
-const SECS_TOLERANCE: u64 = 3;
+use passphrasex_common::api::verify_auth_token;
 
 pub async fn only_user<B>(
     Path(params): Path<HashMap<String, String>>,
@@ -23,24 +19,12 @@ pub async fn only_user<B>(
         .extract()
         .await
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
-
-    let enc = EncryptedValue::from(auth.token().to_string());
-    let public_key = public_key_from_base64(user_id);
-    let dec = match verify(&public_key, enc) {
-        Ok(dec) => dec,
-        Err(_) => return Err(StatusCode::UNAUTHORIZED),
-    };
-
-    let dec_time: u64 = dec.parse().map_err(|_| StatusCode::UNAUTHORIZED)?;
-
-    // dec should be current timestamp in seconds (with some tolerance)
-    let time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs();
-
-    if time - dec_time > SECS_TOLERANCE {
-        return Err(StatusCode::UNAUTHORIZED);
+    
+    match verify_auth_token(user_id, auth.token()) {
+        Ok(_) => (),
+        Err(_) => {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     }
 
     let response = next.run(Request::from_parts(parts, body)).await;
