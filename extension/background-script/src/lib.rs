@@ -15,9 +15,10 @@ use messages::{
 use thiserror::Error;
 use wasm_bindgen::{prelude::*, JsCast};
 
-use crate::storage::{execute_storage_credentials_action, StorageCredentials, StorageSecretKey};
+use crate::storage::{
+    execute_storage_credentials_action, KeyPairOption, StorageCredentials, StorageKeys,
+};
 use passphrasex_common::api::Api;
-use passphrasex_common::crypto::asymmetric::KeyPair;
 use web_extensions_sys::{chrome, Port, Tab, TabChangeInfo};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -285,9 +286,18 @@ async fn on_port_request(
 
 async fn auth(
     app: &Rc<RefCell<App>>,
-    storage_key: StorageSecretKey,
-    key_pair: KeyPair,
+    key_pair_option: KeyPairOption,
+    device_password: &str,
 ) -> AppResponsePayload {
+    let key_pair = match key_pair_option.clone() {
+        KeyPairOption(Some(key_pair)) => key_pair,
+        KeyPairOption(None) => {
+            return AppResponsePayload::Auth {
+                error: Some("Unauthenticated".to_string()),
+            }
+        }
+    };
+
     match Api::new(key_pair.clone())
         .get_passwords(key_pair.get_verifying_key())
         .await
@@ -296,7 +306,11 @@ async fn auth(
             let creds = StorageCredentials::from(passwords);
             app.borrow_mut().login(key_pair, creds.credentials.clone());
 
-            match creds.save().await.and(storage_key.save().await) {
+            match creds
+                .save()
+                .await
+                .and(key_pair_option.save(device_password).await)
+            {
                 Ok(()) => AppResponsePayload::Auth { error: None },
                 Err(err) => AppResponsePayload::Auth {
                     error: Some(err.to_string()),
@@ -323,8 +337,13 @@ async fn handle_app_request(
         AppRequestPayload::GetOptionsInfo => AppResponsePayload::OptionsInfo {
             version: VERSION.to_string(),
         },
-        AppRequestPayload::GetStatus => match StorageSecretKey::load().await {
-            Ok(sk) => match app.borrow().get_status(sk) {
+        AppRequestPayload::GetStatus => {
+            let has_key_pair = match KeyPairOption::has_key_pair().await {
+                Ok(has_key_pair) => has_key_pair,
+                Err(_) => return None,
+            };
+
+            match app.borrow().get_status(has_key_pair) {
                 Ok((is_logged_in, is_unlocked)) => AppResponsePayload::Status {
                     is_logged_in,
                     is_unlocked,
@@ -332,63 +351,67 @@ async fn handle_app_request(
                 Err(_) => {
                     return None;
                 }
-            },
-            Err(_) => {
+            }
+        }
+        AppRequestPayload::Unlock { device_password } => {
+            let storage_key = match StorageKeys::load().await {
+                Ok(storage_key) => storage_key,
+                Err(err) => {
+                    console::error!("Failed to load storage key", err.to_string());
+                    return None;
+                }
+            };
+
+            let creds = match StorageCredentials::load().await {
+                Ok(creds) => creds,
+                Err(err) => {
+                    console::error!("Failed to load storage credentials", err.to_string());
+                    return None;
+                }
+            };
+
+            match app
+                .borrow_mut()
+                .unlock(storage_key, creds, device_password.as_str())
+            {
+                Ok(()) => AppResponsePayload::Auth { error: None },
+                Err(err) => AppResponsePayload::Auth {
+                    error: Some(err.to_string()),
+                },
+            }
+        }
+        AppRequestPayload::Lock {} => match app.borrow_mut().lock() {
+            Ok(()) => AppResponsePayload::Ok,
+            Err(err) => {
+                console::error!("Failed to lock", err.to_string());
                 return None;
             }
         },
-        AppRequestPayload::Unlock { device_password } => match StorageSecretKey::load().await {
-            Ok(sk) => match StorageCredentials::load().await {
-                Ok(creds) => match app.borrow_mut().unlock(sk, creds, device_password) {
-                    Ok(()) => AppResponsePayload::Auth { error: None },
-                    Err(err) => AppResponsePayload::Auth {
-                        error: Some(err.to_string()),
-                    },
-                },
-                Err(err) => AppResponsePayload::Auth {
-                    error: Some(err.to_string()),
-                },
-            },
-            Err(err) => AppResponsePayload::Auth {
-                error: Some(err.to_string()),
-            },
-        },
-        AppRequestPayload::Lock {} => {
-            match app.borrow_mut().lock() {
-                Ok(()) => AppResponsePayload::Ok,
-                Err(err) => {
-                    console::error!("Failed to lock", err.to_string());
-                    return None; // TODO: Error
-                }
-            }
-        }
         AppRequestPayload::Login {
             seed_phrase,
             device_password,
-        } => match StorageSecretKey::from_seed_phrase(seed_phrase, device_password).await {
-            Ok((sk, key_pair)) => auth(app, sk, key_pair).await,
+        } => match KeyPairOption::from_seed_phrase(seed_phrase).await {
+            Ok(key_pair_option) => auth(app, key_pair_option, device_password.as_str()).await,
             Err(err) => AppResponsePayload::Auth {
                 error: Some(err.to_string()),
             },
         },
-        AppRequestPayload::Register { device_password } => {
-            match StorageSecretKey::generate(device_password).await {
-                Ok((sk, seed_phrase, key_pair)) => match auth(app, sk, key_pair).await {
-                    AppResponsePayload::Auth { error: None } => {
-                        AppResponsePayload::SeedPhrase(seed_phrase)
-                    }
-                    AppResponsePayload::Auth { error: Some(err) } => {
-                        AppResponsePayload::Auth { error: Some(err) }
-                    }
-                    _ => {
-                        return None;
-                    }
-                },
-                Err(err) => AppResponsePayload::Auth {
-                    error: Some(err.to_string()),
-                },
-            }
-        }
+        AppRequestPayload::Register { device_password } => match KeyPairOption::generate().await {
+            Ok((sk, seed_phrase)) => match auth(app, sk, device_password.as_str()).await {
+                AppResponsePayload::Auth { error: None } => {
+                    AppResponsePayload::SeedPhrase(seed_phrase)
+                }
+                AppResponsePayload::Auth { error: Some(err) } => {
+                    AppResponsePayload::Auth { error: Some(err) }
+                }
+                _ => {
+                    return None;
+                }
+            },
+            Err(err) => AppResponsePayload::Auth {
+                error: Some(err.to_string()),
+            },
+        },
         AppRequestPayload::Logout {} => {
             let logout_action = app.borrow_mut().logout();
 

@@ -12,18 +12,41 @@ use std::rc::Rc;
 use wasm_bindgen::JsValue;
 use web_extensions_sys::chrome;
 
-pub static STORAGE_KEYS: [&str; 3] = ["public_key", "secret_key", "salt"];
+pub static STORAGE_KEYS: [&str; 2] = ["private_key", "signing_key"];
 pub static CREDENTIALS_KEYS: [&str; 1] = ["credentials"];
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StorageSecretKey {
-    pub public_key: Option<String>,
-    pub verifying_key: Option<String>,
-    pub secret_key: Option<Vec<u8>>,
-    pub signing_key: Option<Vec<u8>>,
+#[derive(Clone)]
+pub struct KeyPairOption(pub Option<KeyPair>);
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct StorageKeys {
+    private_key: Vec<u8>,
+    signing_key: Vec<u8>,
 }
 
-impl TryInto<Object> for StorageSecretKey {
+impl StorageKeys {
+    pub(crate) fn try_into_key_pair(self, password: &str) -> anyhow::Result<KeyPair> {
+        let key_pair = KeyPair::try_from_private_keys(
+            self.private_key.as_slice(),
+            self.signing_key.as_slice(),
+            password,
+        )?;
+
+        Ok(key_pair)
+    }
+
+    pub(crate) async fn load() -> anyhow::Result<Self> {
+        load_from_local_storage(&STORAGE_KEYS)
+            .await
+            .map_err(|err| anyhow!("Error loading storage keys: {:?}", err))
+    }
+
+    pub(crate) async fn save(self) -> anyhow::Result<()> {
+        save_to_local_storage(self).await
+    }
+}
+
+impl TryInto<Object> for StorageKeys {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<Object, Self::Error> {
@@ -32,52 +55,48 @@ impl TryInto<Object> for StorageSecretKey {
     }
 }
 
-impl StorageSecretKey {
-    pub async fn generate(device_password: String) -> anyhow::Result<(Self, String, KeyPair)> {
+impl KeyPairOption {
+    pub async fn generate() -> anyhow::Result<(Self, String)> {
         let seed_phrase = SeedPhrase::new();
         let key_pair = KeyPair::try_new(seed_phrase.clone())?;
 
-        let secret_key = key_pair.get_private_key_enc(&device_password);
-        let signing_key = key_pair.get_signing_key_enc(&device_password);
-        let public_key = key_pair.get_public_key();
-        let verifying_key = key_pair.get_public_key();
+        let verifying_key = key_pair.get_verifying_key();
 
         let api = Api::new(key_pair.clone());
-        api.create_user(verifying_key.clone()).await?;
+        api.create_user(verifying_key).await?;
 
-        Ok((
-            Self::new(Some(public_key), Some(secret_key), Some(signing_key)),
-            seed_phrase.get_phrase(),
-            key_pair,
-        ))
+        Ok((Self(Some(key_pair)), seed_phrase.get_phrase()))
     }
 
-    pub async fn from_seed_phrase(
-        seed_phrase: String,
-        device_password: String,
-    ) -> anyhow::Result<(Self, KeyPair)> {
+    pub async fn from_seed_phrase(seed_phrase: String) -> anyhow::Result<Self> {
         let seed_phrase = SeedPhrase::from(seed_phrase);
         let key_pair = KeyPair::try_new(seed_phrase)?;
 
-        let secret_key = key_pair.get_private_key_enc(&device_password);
-        let signing_key = key_pair.get_signing_key_enc(&device_password);
-        let public_key = key_pair.get_public_key();
-        let verifying_key = key_pair.get_verifying_key();
-
-        Ok((Self {
-            public_key: Some(public_key),
-            verifying_key: Some(verifying_key),
-            secret_key: Some(secret_key),
-            signing_key: Some(signing_key),
-        }, key_pair))
+        Ok(Self(Some(key_pair)))
     }
 
-    pub async fn load() -> anyhow::Result<Self> {
-        load_from_local_storage(&STORAGE_KEYS).await
+    pub async fn has_key_pair() -> anyhow::Result<bool> {
+        load_from_local_storage::<StorageKeys>(&STORAGE_KEYS)
+            .await
+            .map(|_| true)
+            .or_else(|_| Ok(false))
     }
 
-    pub async fn save(self) -> anyhow::Result<()> {
-        save_to_local_storage(self).await
+    pub async fn save(self, device_pass: &str) -> anyhow::Result<()> {
+        match self {
+            Self(Some(key_pair)) => {
+                let private_key = key_pair.get_private_key_enc(device_pass);
+                let signing_key = key_pair.get_signing_key_enc(device_pass);
+
+                let storage_keys = StorageKeys {
+                    private_key,
+                    signing_key,
+                };
+
+                storage_keys.save().await
+            }
+            Self(None) => remove_from_local_storage(&STORAGE_KEYS).await,
+        }
     }
 
     pub async fn remove() -> anyhow::Result<()> {
@@ -156,7 +175,7 @@ impl StorageCredentialsAction {
                 credentials.save().await
             }
             StorageCredentialsAction::Logout => {
-                StorageSecretKey::remove().await?;
+                KeyPairOption::remove().await?;
                 StorageCredentials::remove().await?;
                 Ok(())
             }
@@ -166,7 +185,7 @@ impl StorageCredentialsAction {
     pub async fn execute_without_api(self) -> anyhow::Result<()> {
         match self {
             StorageCredentialsAction::Logout => {
-                StorageSecretKey::remove().await?;
+                KeyPairOption::remove().await?;
                 StorageCredentials::remove().await?;
                 Ok(())
             }

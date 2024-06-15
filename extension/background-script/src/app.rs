@@ -1,4 +1,4 @@
-use crate::storage::{StorageCredentials, StorageCredentialsAction, StorageSecretKey};
+use crate::storage::{StorageCredentials, StorageCredentialsAction, StorageKeys};
 use crate::{ConnectedPorts, PortError, PortId};
 use anyhow::anyhow;
 use messages::{next_request_id, Credential, RequestId};
@@ -67,12 +67,9 @@ impl App {
         self.connected_ports.post_message_js(port_id, msg)
     }
 
-    pub fn get_status(&self, sk: StorageSecretKey) -> anyhow::Result<(bool, bool)> {
+    pub fn get_status(&self, has_key_pair: bool) -> anyhow::Result<(bool, bool)> {
         match self.app_data {
-            AppData::Locked => match sk.secret_key {
-                Some(_) => Ok((true, false)),
-                None => Ok((false, false)),
-            },
+            AppData::Locked => Ok((has_key_pair, false)),
             AppData::Unlocked { .. } => Ok((true, true)),
         }
     }
@@ -86,29 +83,18 @@ impl App {
 
     pub fn unlock(
         &mut self,
-        sk: StorageSecretKey,
+        storage_keys: StorageKeys,
         creds: StorageCredentials,
-        device_password: String,
+        device_password: &str,
     ) -> anyhow::Result<()> {
-        let public_key = sk.public_key.ok_or(anyhow!("No pk found"))?;
-        let private_key = sk.secret_key.ok_or(anyhow!("No sk found"))?;
-
-
-        let key_pair = KeyPair::try_from_private_keys(private_key.as_slice(), device_password.as_str())?;
-        if key_pair.get_verifying_key() != public_key {
-            return Err(anyhow!("Invalid key pair"));
+        if let AppData::Unlocked(_) = self.app_data {
+            return Err(anyhow!("Already unlocked"));
         }
 
+        let key_pair = storage_keys.try_into_key_pair(device_password)?;
         let credentials_map = creds.credentials;
 
-        match self.app_data {
-            AppData::Locked => {
-                self.app_data = AppData::new(key_pair, credentials_map);
-            }
-            AppData::Unlocked { .. } => {
-                return Err(anyhow!("Already unlocked"));
-            }
-        }
+        self.app_data = AppData::new(key_pair, credentials_map);
 
         Ok(())
     }
