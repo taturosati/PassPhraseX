@@ -4,7 +4,6 @@ use gloo_utils::format::JsValueSerdeExt;
 use js_sys::Object;
 use passphrasex_common::api::Api;
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
-use passphrasex_common::crypto::symmetric::{encrypt_data, generate_salt, hash};
 use passphrasex_common::model::password::Password;
 use passphrasex_common::model::CredentialsMap;
 use serde::{Deserialize, Serialize};
@@ -19,8 +18,7 @@ pub static CREDENTIALS_KEYS: [&str; 1] = ["credentials"];
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StorageSecretKey {
     pub public_key: Option<String>,
-    pub secret_key: Option<String>,
-    pub salt: Option<String>,
+    pub secret_key: Option<Vec<u8>>,
 }
 
 impl TryInto<Object> for StorageSecretKey {
@@ -35,33 +33,26 @@ impl TryInto<Object> for StorageSecretKey {
 impl StorageSecretKey {
     pub fn new(
         public_key: Option<String>,
-        secret_key: Option<String>,
-        salt: Option<String>,
+        secret_key: Option<Vec<u8>>,
     ) -> Self {
         Self {
             public_key,
             secret_key,
-            salt,
         }
     }
 
     pub async fn generate(device_password: String) -> anyhow::Result<(Self, String, KeyPair)> {
-        let salt = generate_salt()?;
-        let pass_hash = hash(&device_password, &salt)?;
-
         let seed_phrase = SeedPhrase::new();
         let key_pair = KeyPair::try_new(seed_phrase.clone())?;
 
-        let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
-        let secret_key = hex::encode(enc_sk.as_slice());
-
+        let secret_key = key_pair.get_sk(&device_password);
         let public_key = key_pair.get_pk();
 
         let api = Api::new(key_pair.clone());
         api.create_user(public_key.clone()).await?;
 
         Ok((
-            Self::new(Some(public_key), Some(secret_key), Some(salt)),
+            Self::new(Some(public_key), Some(secret_key)),
             seed_phrase.get_phrase(),
             key_pair,
         ))
@@ -71,19 +62,14 @@ impl StorageSecretKey {
         seed_phrase: String,
         device_password: String,
     ) -> anyhow::Result<(Self, KeyPair)> {
-        let salt = generate_salt()?;
-        let pass_hash = hash(&device_password, &salt)?;
-
         let seed_phrase = SeedPhrase::from(seed_phrase);
         let key_pair = KeyPair::try_new(seed_phrase)?;
 
-        let enc_sk = encrypt_data(&pass_hash.cipher, key_pair.private_key.as_bytes())?;
-        let secret_key = hex::encode(enc_sk.as_slice());
-
+        let secret_key = key_pair.get_sk(&device_password);
         let public_key = key_pair.get_pk();
 
         Ok((
-            Self::new(Some(public_key), Some(secret_key), Some(salt)),
+            Self::new(Some(public_key), Some(secret_key)),
             key_pair,
         ))
     }

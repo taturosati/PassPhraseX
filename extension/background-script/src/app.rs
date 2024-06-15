@@ -4,7 +4,6 @@ use anyhow::anyhow;
 use messages::{next_request_id, Credential, RequestId};
 use passphrasex_common::api::Api;
 use passphrasex_common::crypto::asymmetric::KeyPair;
-use passphrasex_common::crypto::symmetric::{decrypt_data, hash};
 use passphrasex_common::model::password::Password;
 use passphrasex_common::model::CredentialsMap;
 use std::collections::HashMap;
@@ -92,17 +91,9 @@ impl App {
         device_password: String,
     ) -> anyhow::Result<()> {
         let pk = sk.public_key.ok_or(anyhow!("No pk found"))?;
-        let salt = sk.salt.ok_or(anyhow!("No salt found"))?;
-        let pass_hash = hash(&device_password, &salt)?;
-
         let sk = sk.secret_key.ok_or(anyhow!("No sk found"))?;
-        let sk = hex::decode(sk).map_err(|err| anyhow!("Unable to decode sk: {:?}", err))?;
-        let sk = decrypt_data(&pass_hash.cipher, sk)?;
 
-        let mut content: [u8; 32] = [0; 32];
-        content.copy_from_slice(&sk[..32]);
-
-        let key_pair = KeyPair::from_sk(content);
+        let key_pair = KeyPair::try_from_sk(sk.as_slice(), device_password.as_str())?;
         if key_pair.get_pk() != pk {
             return Err(anyhow!("Invalid key pair"));
         }
@@ -153,7 +144,7 @@ impl App {
             AppData::Unlocked(app_data) => match app_data.credentials_map.get(&site) {
                 Some(passwords) => match username {
                     Some(username) => {
-                        let id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
+                        let id = app_data.key_pair.hash(&format!("{}{}", site, username));
                         let credential = passwords.get(&id).ok_or(anyhow!("Password not found"))?;
                         let credential = credential.decrypt(&app_data.key_pair);
                         Ok((credential.username, credential.password))
@@ -212,7 +203,7 @@ impl App {
                     return Err(anyhow!("Username & site cannot be empty"));
                 }
 
-                let password_id = app_data.key_pair.hash(&format!("{}{}", site, username))?;
+                let password_id = app_data.key_pair.hash(&format!("{}{}", site, username));
                 let user_id = app_data.key_pair.get_pk();
 
                 let password = Password {

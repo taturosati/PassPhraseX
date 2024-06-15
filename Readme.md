@@ -32,6 +32,8 @@
   - `git clone https://github.com/srosati/passphrasex`
 - Build
   - Install just (https://github.com/casey/just)
+  - Install wasm-pack (https://rustwasm.github.io/wasm-pack/installer/)
+  - Install tailwindcss (https://tailwindcss.com/docs/installation)
   - Go into extension directory `cd passphrasex/extension`
   - Run `just build`
 - Go to chrome://extensions
