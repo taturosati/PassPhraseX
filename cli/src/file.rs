@@ -31,7 +31,7 @@ pub fn write_sk(sk: Vec<u8>) -> anyhow::Result<()> {
 }
 
 pub fn read_sk() -> anyhow::Result<Vec<u8>> {
-    Ok(read_bytes(PRIVATE_KEY_FILE)?)
+    read_bytes(PRIVATE_KEY_FILE)
 }
 
 pub fn write_app_data(data: &CredentialsMap) -> anyhow::Result<()> {

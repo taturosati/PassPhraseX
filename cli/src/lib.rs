@@ -61,7 +61,7 @@ async fn sync_with_api(api: Api, key_pair: KeyPair) -> anyhow::Result<Credential
     for password in passwords {
         credentials
             .entry(password.site.clone())
-            .or_insert(HashMap::new())
+            .or_default()
             .insert(password._id.clone(), password.clone());
     }
 
@@ -114,7 +114,7 @@ impl App {
 
         self.credentials
             .entry(site)
-            .or_insert(HashMap::new())
+            .or_default()
             .insert(password_id, password);
 
         write_app_data(&self.credentials).expect("Failed to save app data to file");
@@ -162,14 +162,14 @@ impl App {
 
         let password_enc = self.key_pair.encrypt(&password);
         self.api
-            .edit_password(user_id, password_id.clone(), password_enc.clone().into())
+            .edit_password(user_id, password_id.clone(), password_enc.clone())
             .await?;
 
         self.credentials
             .entry(site)
-            .or_insert(HashMap::new()) // Should never happen
+            .or_default() // Should never happen
             .entry(password_id)
-            .and_modify(|e| e.password = password_enc.clone().into());
+            .and_modify(|e| e.password.clone_from(&password_enc));
 
         write_app_data(&self.credentials).expect("Failed to save app data to file");
 
@@ -188,7 +188,7 @@ impl App {
 
         self.credentials
             .entry(site)
-            .or_insert(HashMap::new()) // Should never happen
+            .or_default() // Should never happen
             .remove(&password_id);
 
         write_app_data(&self.credentials).expect("Failed to save app data to file");
