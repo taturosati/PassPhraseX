@@ -289,7 +289,7 @@ async fn auth(
     key_pair: KeyPair,
 ) -> AppResponsePayload {
     match Api::new(key_pair.clone())
-        .get_passwords(key_pair.get_pk())
+        .get_passwords(key_pair.get_verifying_key())
         .await
     {
         Ok(passwords) => {

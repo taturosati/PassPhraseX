@@ -18,7 +18,9 @@ pub static CREDENTIALS_KEYS: [&str; 1] = ["credentials"];
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StorageSecretKey {
     pub public_key: Option<String>,
+    pub verifying_key: Option<String>,
     pub secret_key: Option<Vec<u8>>,
+    pub signing_key: Option<Vec<u8>>,
 }
 
 impl TryInto<Object> for StorageSecretKey {
@@ -31,25 +33,20 @@ impl TryInto<Object> for StorageSecretKey {
 }
 
 impl StorageSecretKey {
-    pub fn new(public_key: Option<String>, secret_key: Option<Vec<u8>>) -> Self {
-        Self {
-            public_key,
-            secret_key,
-        }
-    }
-
     pub async fn generate(device_password: String) -> anyhow::Result<(Self, String, KeyPair)> {
         let seed_phrase = SeedPhrase::new();
         let key_pair = KeyPair::try_new(seed_phrase.clone())?;
 
-        let secret_key = key_pair.get_sk(&device_password);
-        let public_key = key_pair.get_pk();
+        let secret_key = key_pair.get_private_key_enc(&device_password);
+        let signing_key = key_pair.get_signing_key_enc(&device_password);
+        let public_key = key_pair.get_public_key();
+        let verifying_key = key_pair.get_public_key();
 
         let api = Api::new(key_pair.clone());
-        api.create_user(public_key.clone()).await?;
+        api.create_user(verifying_key.clone()).await?;
 
         Ok((
-            Self::new(Some(public_key), Some(secret_key)),
+            Self::new(Some(public_key), Some(secret_key), Some(signing_key)),
             seed_phrase.get_phrase(),
             key_pair,
         ))
@@ -62,10 +59,17 @@ impl StorageSecretKey {
         let seed_phrase = SeedPhrase::from(seed_phrase);
         let key_pair = KeyPair::try_new(seed_phrase)?;
 
-        let secret_key = key_pair.get_sk(&device_password);
-        let public_key = key_pair.get_pk();
+        let secret_key = key_pair.get_private_key_enc(&device_password);
+        let signing_key = key_pair.get_signing_key_enc(&device_password);
+        let public_key = key_pair.get_public_key();
+        let verifying_key = key_pair.get_verifying_key();
 
-        Ok((Self::new(Some(public_key), Some(secret_key)), key_pair))
+        Ok((Self {
+            public_key: Some(public_key),
+            verifying_key: Some(verifying_key),
+            secret_key: Some(secret_key),
+            signing_key: Some(signing_key),
+        }, key_pair))
     }
 
     pub async fn load() -> anyhow::Result<Self> {

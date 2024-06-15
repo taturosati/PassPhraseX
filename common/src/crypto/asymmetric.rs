@@ -1,8 +1,9 @@
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 use bip32::secp256k1::sha2::Sha256;
-use bip32::{Mnemonic, XPrv};
+use bip32::{ChildNumber, Mnemonic, XPrv};
 use crypto_box::aead::OsRng;
 use crypto_box::PublicKey;
+use pkcs8::{EncodePrivateKey};
 use rand::thread_rng;
 use rand_chacha::ChaCha20Rng;
 use rand_core::SeedableRng;
@@ -12,7 +13,7 @@ use rsa::pkcs8::DecodePrivateKey;
 use rsa::signature::{RandomizedSigner, SignatureEncoding, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::str;
-use pkcs8::EncodePrivateKey;
+use bip32::secp256k1::ecdsa::signature::Keypair;
 
 #[derive(Clone)]
 pub struct SeedPhrase {
@@ -70,10 +71,14 @@ impl KeyPair {
         let seed = mnemonic.to_seed("");
 
         // Derive the root `XPrv` from the `seed` value
-        let derived_sk =
+        let derived_key =
             XPrv::new(&seed).map_err(|_| anyhow::format_err!("Failed to derive sk"))?;
 
-        let priv_attrs = derived_sk.attrs();
+        let derived_signing_key = derived_key
+            .derive_child(ChildNumber(1))
+            .map_err(|_| anyhow::format_err!("Failed to derive signing sk"))?;
+
+        let priv_attrs = derived_key.attrs();
         let chain_code: [u8; 32] = priv_attrs.chain_code;
         let mut seed = ChaCha20Rng::from_seed(chain_code);
         let private_key = RsaPrivateKey::new(&mut seed, 2048)
@@ -81,8 +86,13 @@ impl KeyPair {
 
         let public_key = RsaPublicKey::from(&private_key);
 
-        let signing_key = SigningKey::from(private_key.clone());
-        let verifying_key = VerifyingKey::from(public_key.clone());
+        let chain_code = derived_signing_key.attrs().chain_code;
+        seed = ChaCha20Rng::from_seed(chain_code);
+        let signing_private_key = RsaPrivateKey::new(&mut seed, 2048)
+            .map_err(|_| anyhow::format_err!("Failed to create signing private key"))?;
+
+        let signing_key = SigningKey::from(signing_private_key.clone());
+        let verifying_key = VerifyingKey::from(RsaPublicKey::from(&signing_private_key));
 
         Ok(KeyPair {
             private_key,
@@ -92,13 +102,21 @@ impl KeyPair {
         })
     }
 
-    pub fn try_from_sk(sk: &[u8], password: &str) -> anyhow::Result<KeyPair> {
-        let private_key = RsaPrivateKey::from_pkcs8_encrypted_der(sk, password)
+    pub fn try_from_private_keys(
+        private_key: &[u8],
+        signing_key: &[u8],
+        password: &str,
+    ) -> anyhow::Result<KeyPair> {
+        let private_key = RsaPrivateKey::from_pkcs8_encrypted_der(private_key, password)
             .map_err(|_| anyhow::format_err!("Invalid device password"))?;
 
         let public_key = private_key.to_public_key();
-        let signing_key = SigningKey::from(private_key.clone());
-        let verifying_key = VerifyingKey::from(public_key.clone());
+
+        let signing_private_key = RsaPrivateKey::from_pkcs8_encrypted_der(signing_key, password)
+            .map_err(|_| anyhow::format_err!("Failed to create signing key"))?;
+
+        let signing_key = SigningKey::from(signing_private_key);
+        let verifying_key = signing_key.verifying_key();
 
         Ok(KeyPair {
             private_key,
@@ -134,7 +152,7 @@ impl KeyPair {
         signature.to_vec()
     }
 
-    pub fn get_pk(&self) -> String {
+    pub fn get_public_key(&self) -> String {
         let pk_bytes = self
             .public_key
             .to_pkcs1_der()
@@ -143,12 +161,31 @@ impl KeyPair {
         URL_SAFE.encode(pk_bytes.as_bytes())
     }
 
-    pub fn get_sk(&self, password: &str) -> Vec<u8> {
-        let enc = self.private_key
+    pub fn get_private_key_enc(&self, password: &str) -> Vec<u8> {
+        let enc = self
+            .private_key
             .to_pkcs8_encrypted_der(OsRng, password)
             .expect("Failed to convert to pkcs8 pem");
 
         enc.to_bytes().to_vec()
+    }
+
+    pub fn get_signing_key_enc(&self, password: &str) -> Vec<u8> {
+        let enc = self
+            .signing_key
+            .to_pkcs8_encrypted_der(OsRng, password)
+            .expect("Failed to convert to pkcs8 pem");
+
+        enc.to_bytes().to_vec()
+    }
+
+    pub fn get_verifying_key(&self) -> String {
+        let pk_bytes = self
+            .verifying_key
+            .to_pkcs1_der()
+            .expect("Failed to convert to pkcs1 der");
+
+        URL_SAFE.encode(pk_bytes.as_bytes())
     }
 
     pub fn hash(&self, message: &str) -> String {
@@ -161,12 +198,12 @@ impl KeyPair {
 }
 
 pub fn verifying_key_from_base64(vk: &str) -> anyhow::Result<VerifyingKey<Sha256>> {
-    let pk_bytes = URL_SAFE
+    let key_bytes = URL_SAFE
         .decode(vk.as_bytes())
         .map_err(|_| anyhow::format_err!("Failed to decode"))?;
 
-    let public_key = RsaPublicKey::from_pkcs1_der(pk_bytes.as_slice())
-        .map_err(|_| anyhow::format_err!("Failed to convert to verifying key"))?;
+    let public_key = RsaPublicKey::from_pkcs1_der(key_bytes.as_slice())
+        .map_err(|_| anyhow::format_err!("Failed to create public key"))?;
 
     Ok(VerifyingKey::from(public_key))
 }

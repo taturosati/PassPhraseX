@@ -1,7 +1,7 @@
 mod time;
 
 // Wrapper functions to call api
-use crate::crypto::asymmetric::{KeyPair, verify, verifying_key_from_base64};
+use crate::crypto::asymmetric::{verify, verifying_key_from_base64, KeyPair};
 use crate::model::password::Password;
 use anyhow::format_err;
 use base64::engine::general_purpose::URL_SAFE;
@@ -151,7 +151,7 @@ async fn validate_response(res: Response, status_code: StatusCode) -> anyhow::Re
     Ok(())
 }
 
-pub fn verify_auth_token(public_key: &str, token: &str) -> anyhow::Result<()> {
+pub fn verify_auth_token(verifying_key: &str, token: &str) -> anyhow::Result<()> {
     let (time, signature) = token.split_once(';').ok_or(format_err!("Invalid token"))?;
     let time = time.parse::<u64>()?;
     let now = SystemTime::now()
@@ -164,14 +164,11 @@ pub fn verify_auth_token(public_key: &str, token: &str) -> anyhow::Result<()> {
     }
 
     let signature = URL_SAFE.decode(signature.as_bytes())?;
-    let verifying_key = verifying_key_from_base64(public_key)?;
-    match verify(verifying_key, time.to_string().as_bytes(), signature.as_slice()) {
-        Ok(_) => (),
-        Err(err) => {
-            println!("{:?}", err);
-            return Err(format_err!("Invalid token: {}", err));
-        }
-    }
+    let verifying_key = verifying_key_from_base64(verifying_key)?;
 
-    Ok(())
+    verify(
+        verifying_key,
+        time.to_string().as_bytes(),
+        signature.as_slice(),
+    ).map_err(|err| format_err!("Failed to verify: {}", err))
 }

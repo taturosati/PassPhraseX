@@ -90,11 +90,12 @@ impl App {
         creds: StorageCredentials,
         device_password: String,
     ) -> anyhow::Result<()> {
-        let pk = sk.public_key.ok_or(anyhow!("No pk found"))?;
-        let sk = sk.secret_key.ok_or(anyhow!("No sk found"))?;
+        let public_key = sk.public_key.ok_or(anyhow!("No pk found"))?;
+        let private_key = sk.secret_key.ok_or(anyhow!("No sk found"))?;
 
-        let key_pair = KeyPair::try_from_sk(sk.as_slice(), device_password.as_str())?;
-        if key_pair.get_pk() != pk {
+
+        let key_pair = KeyPair::try_from_private_keys(private_key.as_slice(), device_password.as_str())?;
+        if key_pair.get_verifying_key() != public_key {
             return Err(anyhow!("Invalid key pair"));
         }
 
@@ -204,7 +205,7 @@ impl App {
                 }
 
                 let password_id = app_data.key_pair.hash(&format!("{}{}", site, username));
-                let user_id = app_data.key_pair.get_pk();
+                let user_id = app_data.key_pair.get_verifying_key();
 
                 let password = Password {
                     _id: password_id.clone(),

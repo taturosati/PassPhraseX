@@ -7,7 +7,7 @@ use std::string::String;
 
 use app_dirs2::AppInfo;
 
-use crate::file::{read_app_data, read_sk, write_app_data, write_sk};
+use crate::file::{read_app_data, read_private_key, read_signing_key, write_app_data, write_private_key, write_signing_key};
 
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use passphrasex_common::model::password::Password;
@@ -32,11 +32,12 @@ pub async fn register(device_pass: &str) -> anyhow::Result<SeedPhrase> {
 
     let api = Api::new(key_pair.clone());
 
-    write_sk(key_pair.get_sk(device_pass))?;
+    write_private_key(key_pair.get_private_key_enc(device_pass))?;
+    write_signing_key(key_pair.get_signing_key_enc(device_pass))?;
 
     write_app_data(&HashMap::new())?;
 
-    api.create_user(key_pair.get_pk()).await?;
+    api.create_user(key_pair.get_verifying_key()).await?;
 
     Ok(seed_phrase)
 }
@@ -47,7 +48,8 @@ pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> anyhow::Result
 
     let api = Api::new(key_pair.clone());
 
-    write_sk(key_pair.get_sk(device_pass))?;
+    write_private_key(key_pair.get_private_key_enc(device_pass))?;
+    write_signing_key(key_pair.get_signing_key_enc(device_pass))?;
 
     sync_with_api(api, key_pair.clone()).await?;
 
@@ -55,7 +57,7 @@ pub async fn auth_device(seed_phrase: &str, device_pass: &str) -> anyhow::Result
 }
 
 async fn sync_with_api(api: Api, key_pair: KeyPair) -> anyhow::Result<CredentialsMap> {
-    let passwords = api.get_passwords(key_pair.get_pk()).await?;
+    let passwords = api.get_passwords(key_pair.get_verifying_key()).await?;
     let mut credentials: CredentialsMap = HashMap::new();
 
     for password in passwords {
@@ -72,8 +74,14 @@ async fn sync_with_api(api: Api, key_pair: KeyPair) -> anyhow::Result<Credential
 
 impl App {
     pub async fn new(device_pass: &str) -> anyhow::Result<App> {
-        let sk_enc = read_sk()?;
-        let key_pair = KeyPair::try_from_sk(sk_enc.as_slice(), device_pass)?;
+        let private_key_enc = read_private_key()?;
+        let signing_key_enc = read_signing_key()?;
+
+        let key_pair = KeyPair::try_from_private_keys(
+            private_key_enc.as_slice(),
+            signing_key_enc.as_slice(),
+            device_pass
+        )?;
 
         let api = Api::new(key_pair.clone());
 
@@ -97,7 +105,7 @@ impl App {
     ) -> anyhow::Result<()> {
         self.verify_credentials_dont_exist(&site, &username)?;
 
-        let user_id = self.key_pair.get_pk();
+        let user_id = self.key_pair.get_verifying_key();
 
         let password_id = self.key_pair.hash(&format!("{}{}", site, username));
 
@@ -157,7 +165,7 @@ impl App {
     ) -> anyhow::Result<()> {
         self.verify_credentials_exist(&site, &username)?;
 
-        let user_id = self.key_pair.get_pk();
+        let user_id = self.key_pair.get_verifying_key();
         let password_id = self.key_pair.hash(&format!("{}{}", site, username));
 
         let password_enc = self.key_pair.encrypt(&password);
@@ -179,7 +187,7 @@ impl App {
     pub async fn delete(&mut self, site: String, username: String) -> anyhow::Result<()> {
         self.verify_credentials_exist(&site, &username)?;
 
-        let user_id = self.key_pair.get_pk();
+        let user_id = self.key_pair.get_verifying_key();
         let password_id = self.key_pair.hash(&format!("{}{}", site, username));
 
         self.api
