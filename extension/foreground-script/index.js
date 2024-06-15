@@ -33,11 +33,11 @@ function start() {
                 const { username, password } = msg.payload.Credential;
 
                 if (username_input) {
-                    username_input.value = username;
+                    typeValue(username_input, username);
                 }
 
                 if (password_input) {
-                    password_input.value = password;
+                    typeValue(password_input, password);
                 }
             }
         });
@@ -93,6 +93,13 @@ function getInputs() {
 function connect() {
     const connect_info = null;
     return chrome.runtime.connect(null, connect_info);
+}
+
+function typeValue(input, value) {
+    input.focus();
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function getCredential(port, site) {

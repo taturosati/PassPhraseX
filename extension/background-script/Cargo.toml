@@ -8,15 +8,15 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-gloo-console = "0.2.3"
-gloo-timers = { version = "0.2.4", features = ["futures"] }
-gloo-utils = "0.1.5"
+gloo-console = "0.3.0"
+gloo-timers = { version = "0.3.0", features = ["futures"] }
+gloo-utils = "0.2.0"
 js-sys = "0.3.60"
 messages = "=0.1.0"
 serde = { version = "1.0.147", features = ["derive"] }
 thiserror = "1.0.37"
-wasm-bindgen = "0.2.83"
-wasm-bindgen-futures = "0.4.33"
+wasm-bindgen = "0.2.92"
+wasm-bindgen-futures = "0.4.42"
 web-extensions-sys = "0.4.1"
 passphrasex_common = { version = "0.2.0", path = "../../common" }
 hex = "0.4.3"
