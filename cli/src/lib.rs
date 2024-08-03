@@ -7,7 +7,10 @@ use std::string::String;
 
 use app_dirs2::AppInfo;
 
-use crate::file::{read_app_data, read_private_key, read_signing_key, write_app_data, write_private_key, write_signing_key};
+use crate::file::{
+    read_app_data, read_private_key, read_signing_key, write_app_data, write_private_key,
+    write_signing_key,
+};
 
 use passphrasex_common::crypto::asymmetric::{KeyPair, SeedPhrase};
 use passphrasex_common::model::password::Password;
@@ -80,7 +83,7 @@ impl App {
         let key_pair = KeyPair::try_from_private_keys(
             private_key_enc.as_slice(),
             signing_key_enc.as_slice(),
-            device_pass
+            device_pass,
         )?;
 
         let api = Api::new(key_pair.clone());
