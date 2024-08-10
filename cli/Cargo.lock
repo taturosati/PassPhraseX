@@ -1239,7 +1239,7 @@ dependencies = [
 
 [[package]]
 name = "passphrasex"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "app_dirs2",
@@ -1254,7 +1254,7 @@ dependencies = [
 
 [[package]]
 name = "passphrasex_common"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aes",
  "anyhow",
